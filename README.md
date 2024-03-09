@@ -2,6 +2,13 @@
 
 HDF5Translator is a Python tool designed to translate and transform data between HDF5 files. It supports complex operations like unit conversion, dimensionality adjustments, and subtree copying, making it suitable for managing and manipulating scientific datasets.
 
+## Extending with other tools
+
+Don't forget that there are also some useful tools in the HDF5 package itself, including the ability to repack files, adjust datasets and compressions and copy particular items. They are available here: 
+[hdfgroup documentation on tools](https://docs.hdfgroup.org/hdf5/v1_14/_view_tools_edit.html)
+
+This HDF5Translator package is meant to extend this functionality with a tool to extensively reorder and reorganize HDF5 files. 
+
 ## Features
 
   - Translation of HDF5 Structures: Translate data from one HDF5 file to another with flexible mapping configurations.
