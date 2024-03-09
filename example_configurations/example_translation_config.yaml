@@ -1,0 +1,13 @@
+translations:
+  - source: "/source_dataset"
+    destination: "/destination_dataset"
+    datatype: "float32"
+    source_units: "meters"
+    destination_units: "millimeters"
+    transformation: "lambda x: x * 1000"
+    minimum_dimensionality: 3
+    attributes:
+      unit: "mm"
+    compression: "gzip"
+
+  # Add more translation elements as needed
