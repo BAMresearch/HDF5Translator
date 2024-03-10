@@ -1,6 +1,6 @@
 import yaml
 from typing import List
-from translator_elements import TranslationElement
+from ..translator_elements import TranslationElement
 
 def read_translation_config(filepath: str) -> List[TranslationElement]:
     with open(filepath, 'r') as file:

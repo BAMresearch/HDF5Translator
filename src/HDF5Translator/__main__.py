@@ -1,21 +1,22 @@
 import argparse
 import sys
 from pathlib import Path
-from .config_reader import read_translation_config
+from .utils.config_reader import read_translation_config
 # Import or define your translation function here
 
 import logging
 import sys
 from datetime import datetime
 
-def configure_logging():
+def configure_logging(verbose: bool = False):
     """Configure logging to output to stdout and a log file."""
     log_format = "%(asctime)s - %(levelname)s - %(message)s"
     log_datefmt = "%Y-%m-%d %H:%M:%S"
     log_filename = f"HDF5Translator_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
     
+    level = logging.DEBUG if verbose else logging.INFO
     # Configure root logger
-    logging.basicConfig(level=logging.INFO,
+    logging.basicConfig(level=level,
                         format=log_format,
                         datefmt=log_datefmt,
                         handlers=[
@@ -25,29 +26,28 @@ def configure_logging():
 
 def file_exists_and_is_file(file_path: Path):
     """Check if the file exists and is a file."""
-    if not file_path.exists() or not file_path.is_file():
-        raise FileNotFoundError(f"{file_path} does not exist or is not a file.")
+    assert file_path.exists() and file_path.is_file(), logging.error(f"{file_path} does not exist or is not a file.")
 
 def main(args=None):
     """Entry point for the HDF5Translator CLI."""
-
-    configure_logging()
-    logging.info("HDF5Translator started.")
 
     if args is None:
         args = sys.argv[1:]
 
     # Set up the argument parser
     parser = argparse.ArgumentParser(description="Translate HDF5 file structures based on specified configurations.")
-    parser.add_argument("source_file", type=Path, help="Path to the source HDF5 file.")
-    parser.add_argument("destination_file", type=Path, help="Path to the destination HDF5 file.")
-    parser.add_argument("config_file", type=Path, help="Path to the YAML configuration file specifying the translation.")
-    parser.add_argument("-t", "--template_file", type=Path, default=None, help="Path to an optional template HDF5 file to use as a base for the destination.")
+    parser.add_argument("-I", "source_file", type=Path, help="Path to the source HDF5 file.")
+    parser.add_argument("-O", "destination_file", type=Path, help="Path to the destination HDF5 file.")
+    parser.add_argument("-C", "config_file", type=Path, help="Path to the YAML configuration file specifying the translation.")
+    parser.add_argument("-T", "--template_file", type=Path, default=None, help="Path to an optional template HDF5 file to use as a base for the destination.")
     parser.add_argument("-v", "--verbose", action="store_true", help="Increase output verbosity for debugging purposes.")
     parser.add_argument("-d", "--delete", action="store_true", help="Delete the output file if it already exists, before starting the translation.")
 
+
     # Parse arguments
     args = parser.parse_args(args)
+    configure_logging(args.verbose)
+    logging.info("HDF5Translator started.")
 
     # Validate file existence
     file_exists_and_is_file(args.source_file)
