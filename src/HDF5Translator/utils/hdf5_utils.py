@@ -1,3 +1,5 @@
+import logging
+from pathlib import Path
 import h5py
 import numpy as np
 from pint import UnitRegistry
@@ -87,41 +89,55 @@ def perform_unit_conversion(data, input_units, output_units):
     converted = quantity.to(output_units).magnitude
     return converted
 
-def copy_subtree(source_file: h5py.File, dest_file: h5py.File, source_path: str, dest_path: str):
-    """
-    Recursively copies a subtree from a source HDF5 file to a destination path in another HDF5 file.
+def copy_hdf5_tree(input_file:Path, output_file:Path, input_path:str, output_path:str):
+    # generates the name from a logbook entry row
+    
+    assert input_file.exists(), logging.error(f"input file {input_file} does not exist")
+    # assert output_file.exists(), f"output file {output_file} does not exist"
 
-    Args:
-        source_file (h5py.File): The source HDF5 file object.
-        dest_file (h5py.File): The destination HDF5 file object.
-        source_path (str): The path within the source file to start copying from.
-        dest_path (str): The path within the destination file to copy to.
-    """
-    # Ensure the source exists
-    if source_path not in source_file:
-        raise ValueError(f"Source path {source_path} not found in source file.")
+    with h5py.File(input_file, 'r') as h5_in, h5py.File(output_file, 'a') as h5_out:
+        if output_path in h5_out:
+            logging.warning(f"Output path {output_path} already exists in {output_file}. Overwriting.")
+            del h5_out[output_path]
+        h5_in.copy(input_path, h5_out, name=output_path)
+        logging.info(f"Copied {input_path} from {input_file} to {output_path} in {output_file}.")
 
-    source_obj = source_file[source_path]
 
-    # If the source is a group, recursively copy its contents
-    if isinstance(source_obj, h5py.Group):
-        for name, item in source_obj.items():
-            if isinstance(item, h5py.Dataset):
-                # Copy dataset
-                copy_dataset(item, dest_file, f"{dest_path}/{name}")
-            elif isinstance(item, h5py.Group):
-                # Recursively copy group
-                new_dest_path = f"{dest_path}/{name}"
-                if new_dest_path not in dest_file:
-                    dest_file.create_group(new_dest_path)
-                copy_subtree(source_file, dest_file, f"{source_path}/{name}", new_dest_path)
+# def copy_subtree(source_file: h5py.File, dest_file: h5py.File, source_path: str, dest_path: str):
+#     """
+#     Recursively copies a subtree from a source HDF5 file to a destination path in another HDF5 file.
+
+#     Args:
+#         source_file (h5py.File): The source HDF5 file object.
+#         dest_file (h5py.File): The destination HDF5 file object.
+#         source_path (str): The path within the source file to start copying from.
+#         dest_path (str): The path within the destination file to copy to.
+#     """
+#     # Ensure the source exists
+#     if source_path not in source_file:
+#         raise ValueError(f"Source path {source_path} not found in source file.")
+
+#     source_obj = source_file[source_path]
+
+#     # If the source is a group, recursively copy its contents
+#     if isinstance(source_obj, h5py.Group):
+#         for name, item in source_obj.items():
+#             if isinstance(item, h5py.Dataset):
+#                 # Copy dataset
+#                 copy_dataset(item, dest_file, f"{dest_path}/{name}")
+#             elif isinstance(item, h5py.Group):
+#                 # Recursively copy group
+#                 new_dest_path = f"{dest_path}/{name}"
+#                 if new_dest_path not in dest_file:
+#                     dest_file.create_group(new_dest_path)
+#                 copy_subtree(source_file, dest_file, f"{source_path}/{name}", new_dest_path)
                 
-        # After copying items, copy the attributes of the group
-        copy_attributes(source_obj, dest_file[dest_path])
+#         # After copying items, copy the attributes of the group
+#         copy_attributes(source_obj, dest_file[dest_path])
 
-    elif isinstance(source_obj, h5py.Dataset):
-        # Directly copy dataset if the source path is a dataset
-        copy_dataset(source_obj, dest_file, dest_path)
+#     elif isinstance(source_obj, h5py.Dataset):
+#         # Directly copy dataset if the source path is a dataset
+#         copy_dataset(source_obj, dest_file, dest_path)
 
 def copy_dataset(source_dataset: h5py.Dataset, dest_file: h5py.File, dest_path: str):
     """
@@ -152,3 +168,22 @@ def copy_attributes(source_obj, dest_obj):
     """
     for name, value in source_obj.attrs.items():
         dest_obj.attrs[name] = value
+
+def apply_attributes(hdf5_file_path: str, attributes_config: dict):
+    """
+    Applies attributes to nodes (groups/datasets) within an HDF5 file based on the provided configuration.
+
+    Args:
+        hdf5_file_path (str): Path to the HDF5 file.
+        attributes_config (dict): A dictionary containing the attribute configurations.
+    """
+    with h5py.File(hdf5_file_path, 'a') as hdf5_file:
+        for path, attributes in attributes_config.items():
+            # Use require_group to ensure the group exists; does nothing if the group already exists.
+            # Note: h5py doesn't have a generic "require_dataset" similar to "require_group",
+            # so dataset existence needs additional logic if datasets are to be created.
+            node = hdf5_file.require_group(path) if not isinstance(hdf5_file.get(path), h5py.Dataset) else hdf5_file[path]
+
+            # Apply attributes
+            for attr_name, attr_value in attributes.items():
+                node.attrs[attr_name] = attr_value

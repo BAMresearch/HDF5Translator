@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "HDF5Translator"
+version = "0.1.0"
+description = "A tool for translating and manipulating HDF5 file structures."
+authors = [{name = "Brian R. Pauw"}]
+dependencies = [
+    "h5py",
+    "numpy",
+    "pyyaml",
+    "hdf5plugin",
+    "pint",
+    "attrs"
+    # Add other dependencies as needed
+]
+
+[project.entry-points.console_scripts]
+hdf5translator = "HDF5Translator.__main__:main"
+hdf5_copy_tree = "HDF5Translator.tools.hdf5_copy_tree:main"
+hdf5_add_attributes = "HDF5Translator.tools.hdf5_add_attributes:main"
+hdf5_stacker = "HDF5Translator.tools.hdf5_stacker:main"
+# Add other CLI tools as needed
