@@ -2,7 +2,7 @@ import unittest
 import h5py
 import numpy as np
 import tempfile
-from HDF5Translator.src.HDF5Translator.utils.hdf5_utils import copy_dataset
+from HDF5Translator.utils.hdf5_utils import copy_dataset
 
 class TestHDF5Utils(unittest.TestCase):
 

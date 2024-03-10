@@ -1,0 +1,25 @@
+# these attributes are added/updated in the destination file after translation. 
+attributes:
+  /:
+    default: "entry1"
+    NeXpand_version: "1.0"  # Example version
+  /entry1:
+    NX_class: "NXentry"
+    default: "instrument"
+  /entry1/instrument:
+    default: "detector00"
+    NX_class: "NXinstrument"
+  /entry1/instrument/detector00:
+    NX_class: "NXdetector"
+    default: "data"
+    depends_on: "./transformations/euler_c"
+  /entry1/instrument/detector00/detector_module:
+    NX_class: "NXdetector_module"
+  /entry1/instrument/detector00/transformations:
+    NX_class: "NXtransformations"
+  /entry1/instrument/beamstop:
+    NX_class: "NXbeam_stop"
+    depends_on: "./transformations_bs_y"
+  /entry1/instrument/beamstop/transformations:
+    NX_class: "NXtransformations"
+  # Add more as per your dictionary
