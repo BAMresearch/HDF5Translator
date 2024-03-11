@@ -160,3 +160,4 @@ cython_debug/
 #.idea/
 src/tests/testdata/mouse_single
 .vscode/settings.json
+src/tests/testdata/.DS_Store

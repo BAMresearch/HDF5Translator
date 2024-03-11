@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 from .utils.config_reader import read_translation_config
 # Import or define your translation function here
-
+from .translator import translate
 import logging
 import sys
 from datetime import datetime
@@ -36,9 +36,9 @@ def main(args=None):
 
     # Set up the argument parser
     parser = argparse.ArgumentParser(description="Translate HDF5 file structures based on specified configurations.")
-    parser.add_argument("-I", "source_file", type=Path, help="Path to the source HDF5 file.")
-    parser.add_argument("-O", "destination_file", type=Path, help="Path to the destination HDF5 file.")
-    parser.add_argument("-C", "config_file", type=Path, help="Path to the YAML configuration file specifying the translation.")
+    parser.add_argument("-O", "--destination_file", required=True, type=Path, help="Path to the destination HDF5 file.")
+    parser.add_argument("-C", "--config_file", required=True, type=Path, help="Path to the YAML configuration file specifying the translation.")
+    parser.add_argument("-I", "--source_file", required=False, type=Path, help="Path to the source HDF5 file, can be left out if you want to make just a template structure .")
     parser.add_argument("-T", "--template_file", type=Path, default=None, help="Path to an optional template HDF5 file to use as a base for the destination.")
     parser.add_argument("-v", "--verbose", action="store_true", help="Increase output verbosity for debugging purposes.")
     parser.add_argument("-d", "--delete", action="store_true", help="Delete the output file if it already exists, before starting the translation.")
@@ -50,22 +50,24 @@ def main(args=None):
     logging.info("HDF5Translator started.")
 
     # Validate file existence
-    file_exists_and_is_file(args.source_file)
     file_exists_and_is_file(args.config_file)
+    if args.source_file:
+        file_exists_and_is_file(args.source_file)
     if args.template_file:
         file_exists_and_is_file(args.template_file)
 
     # Handle the output file
     if args.delete and args.destination_file.exists():
         if args.verbose:
-            print(f"Deleting existing destination file: {args.destination_file}")
+            logging.info(f"Deleting existing destination file: {args.destination_file}")
         args.destination_file.unlink()  # Delete the file
 
     # Read translation configuration
     translation_config = read_translation_config(args.config_file)
+    logging.debug({f"{translation_config=}"})
 
     # Perform the translation
-    # Implement the translation logic here, using args.source_file, args.destination_file, translation_config, and args.template_file if provided
+    translate(args.source_file, args.destination_file, args.config_file, args.template_file, args.delete)
 
     if args.verbose:
         print("Translation completed successfully.")

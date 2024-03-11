@@ -1,10 +1,16 @@
+from pathlib import Path
 import h5py
+import yaml
+
+from HDF5Translator.utils.config_reader import read_translation_config
 from .translator_elements import TranslationElement
 from typing import List
-from .utils.hdf5_utils import apply_transformation, create_path_if_not_exists
+from .utils.hdf5_utils import apply_transformation, create_path_if_not_exists, copy_hdf5_tree
 import logging
+import shutil
 
-def translate(source_path: str, dest_path: str, translations: List[TranslationElement], template_path: str = None, overwrite: bool = False):
+
+def translate(source_path: Path, dest_path: Path, config_path:Path, template_path: Path = None, overwrite: bool = False):
     """Performs the translation of an HDF5 file based on the given configuration.
 
     Args:
@@ -14,20 +20,46 @@ def translate(source_path: str, dest_path: str, translations: List[TranslationEl
         template_path (str, optional): Path to a template HDF5 file to use as the base for the destination. Defaults to None.
         overwrite (bool, optional): Whether to overwrite the destination file if it exists. Defaults to False.
     """
+    with open(config_path, 'r') as file:
+        config = yaml.safe_load(file)
 
     # Optionally use a template file as the basis for the destination
     if template_path:
         # Logic to copy the template HDF5 file to the destination path
-        pass
+        shutil.copy(template_path, dest_path)
 
-    # Open the source HDF5 file
-    with h5py.File(source_path, 'r') as source_file:
-        # Open or create the destination HDF5 file
-        mode = 'w' if overwrite else 'a'
-        with h5py.File(dest_path, mode) as dest_file:
-            # Iterate through the translation elements and perform the necessary actions
-            for element in translations:
-                process_translation_element(source_file, dest_file, element)
+    if overwrite:
+        logging.warning(f"Overwriting destination file: {dest_path}")
+        if dest_path.exists():
+            dest_path.unlink()
+
+    # Step 1: Copy trees from source to destination
+    for tree in config.get('treecopy', []):
+        copy_hdf5_tree(source_path, dest_path, tree['source'], tree['destination'])
+
+    # Step 2: Apply specific dataset translations, transformations, datatype conversions, etc.
+    translations = [TranslationElement(**item) for item in config.get('translations',[])]
+    with h5py.File(source_path, 'r') as source_file, h5py.File(dest_path, "a") as dest_file:
+        # # Open or create the destination HDF5 file
+        # # mode = 'w' if overwrite else 'a'
+        # with h5py.File(dest_path, "a") as dest_file:
+        # Iterate through the translation elements and perform the necessary actions
+
+        for element in translations:
+            process_translation_element(source_file, dest_file, element)
+
+    # Step 3: Update or add attributes as specified in the configuration
+    with h5py.File(dest_path, "a") as dest_file:
+        for attribute in config.get("attributes", []):
+            if attribute.get("path") and attribute.get("key") and attribute.get("value"):
+                dest_file[attribute["path"]].attrs[attribute["key"]] = attribute["value"]
+
+    # Step 4: remove (prune) any datasets or groups as specified in the configuration
+    with h5py.File(dest_path, "a") as dest_file:
+        for prune in config.get("prune", []):
+            if prune.get("path"):
+                del dest_file[prune["path"]]
+
 
 def process_translation_element(source_file, dest_file, element: TranslationElement):
     """Processes a single translation element, applying the specified translation to the HDF5 files.

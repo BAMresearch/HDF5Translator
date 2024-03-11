@@ -1,0 +1,56 @@
+# A translator configuration only for generating a base or template structure of your files.
+# treecopy:
+# no entries
+translations:
+  - source: null
+    destination: "/entry1/instrument/source/transformations/x"
+    attributes:
+      units: "m"
+      description: "x coordinate (along the beam) of the source"
+      offset: [0.0, 0.0, 0.0]
+      offset_units: "m"
+      NX_class: "NXtransformations"
+      depends_on: "."
+    datatype: "float64"
+    default_value: -1200.0
+    minimum_dimensionality: 1
+  - source: null
+    destination: "/entry1/instrument/source/transformations/y"
+    attributes:
+      units: "m"
+      depends_on: "./x"
+      offset: [0.0, 0.0, 0.0]
+      offset_units: "m"
+      NX_class: "NXtransformations"
+      description: "y coordinate (horizontal, perpendicular to beam) of the source"
+    datatype: "float64"
+    default_value: 0
+    minimum_dimensionality: 1
+  - source: null
+    destination: "/entry1/instrument/source/transformations/y"
+    attributes:
+      units: "m"
+      depends_on: "./y"
+      offset: [0.0, 0.0, 0.0]
+      offset_units: "m"
+      NX_class: "NXtransformations"
+      description: "z coordinate (vertical, perpendicular to beam) of the source"
+    datatype: "float64"
+    default_value: 0
+    minimum_dimensionality: 1
+
+# extra attributes:
+attributes:
+  /:
+    default_value: "entry1"
+    NeXpand_version: "1.0"  # Example version
+    NX_class: "NXroot"
+  /entry1:
+    NX_class: "NXentry"
+    default_value: "instrument"
+  /entry1/instrument:
+    default_value: "source"
+    NX_class: "NXsource"
+  /entry1/instrument/source:
+    default_value: "transformations"
+    NX_class: "NXtransformations"

@@ -1,13 +1,80 @@
-translations:
-  - source: "/source_dataset"
-    destination: "/destination_dataset"
-    datatype: "float32"
-    source_units: "meters"
-    destination_units: "millimeters"
-    transformation: "lambda x: x * 1000"
-    minimum_dimensionality: 3
-    attributes:
-      unit: "mm"
-    compression: "gzip"
+# entire (sub-)trees can be copied in this section: 
+treecopy:
+  - source: "/entry1/instrument/detector00"
+    destination: "/entry1/instrument/detector00"
+  - source: "/entry1/instrument/beamstop"
+    destination: "/entry1/instrument/beamstop"
 
-  # Add more translation elements as needed
+# translations move datasets from source locations to destination locations in the destination file
+translations:
+  - source: "/entry1/instrument/detector00/count_time"
+    destination: "/entry1/instrument/detector00/count_time"
+    attributes:
+      units: "s"
+    datatype: "float64"
+    default_value: 1
+    minimum_dimensionality: 1
+
+  - source: "/entry1/instrument/detector00/beam_center_x"
+    destination: "/entry1/instrument/detector00/beam_center_y"
+    attributes:
+      units: "m"
+    datatype: "float64"
+    default_value: null
+    minimum_dimensionality: 1
+    transform: "multiply_by_pixelsize"  # Example of a transformation that needs interpretation
+
+  - source: "/entry1/instrument/detector00/data"
+    destination: "/entry1/instrument/detector00/data"
+    attributes:
+      units: "counts"
+    datatype: "float64"
+    default_value: null
+    minimum_dimensionality: 3
+    transform: "squeeze_axis_0"  # Another transformation example
+
+  # Example of an entry with additional attributes but no source location (default value provided)
+  - source: null
+    destination: "/entry1/instrument/detector00/transformations/euler_c"
+    attributes:
+      depends_on: "./euler_b"
+      offset: [0.0, 0.0, 0.0]
+      offset_units: "mm"
+      transformation_type: "rotation"
+      units: "deg"
+      vector: [0.0, 0.0, 1.0]
+    datatype: "float64"
+    default_value: -180.0
+    minimum_dimensionality: 1
+
+# these attributes are added/updated in the destination file after translation. 
+attributes:
+  /:
+    default_value: "entry1"
+    NeXpand_version: "1.0"  # Example version
+  /entry1:
+    NX_class: "NXentry"
+    default_value: "instrument"
+  /entry1/instrument:
+    default_value: "detector00"
+    NX_class: "NXinstrument"
+  /entry1/instrument/detector00:
+    NX_class: "NXdetector"
+    default_value: "data"
+    depends_on: "./transformations/euler_c"
+  /entry1/instrument/detector00/detector_module:
+    NX_class: "NXdetector_module"
+  /entry1/instrument/detector00/transformations:
+    NX_class: "NXtransformations"
+  /entry1/instrument/beamstop:
+    NX_class: "NXbeam_stop"
+    depends_on: "./transformations_bs_y"
+  /entry1/instrument/beamstop/transformations:
+    NX_class: "NXtransformations"
+
+# the prunelist is a list of paths to remove from the destination file after translation
+prunelist:
+  - "/entry1/sample/psi-rotation"
+  - "/entry1/sample/x-translation"
+  - "/entry1/sample/z-translation"
+  - "/entry1/instrument/detector00/distance"
