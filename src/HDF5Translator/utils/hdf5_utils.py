@@ -4,38 +4,61 @@ import h5py
 import numpy as np
 from pint import UnitRegistry
 
+from HDF5Translator.translator_elements import TranslationElement
+
 ureg = UnitRegistry()
 Q_ = ureg.Quantity
-
-def create_path_if_not_exists(hdf5_file: h5py.File, path: str):
-    """Ensure that the HDF5 path exists, creating groups as necessary."""
-    current = hdf5_file
-    for group in path.strip('/').split('/'):
-        if group not in current:
-            current = current.create_group(group)
-        else:
-            current = current[group]
 
 def apply_transformation(data, transformation):
     """Apply the given transformation function to the data."""
     return transformation(data) 
 
-def read_dataset(hdf5_file: h5py.File, path: str, transformation=None):
-    """Read dataset from the given path and apply an optional transformation."""
-    if path in hdf5_file:
-        data = hdf5_file[path][...]
-        if transformation:
-            data = apply_transformation(data, transformation)
-        return data
+def get_data_and_attributes_from_source(source_file: h5py.File, element:TranslationElement):
+    """
+    Get data from the source file according to the given translation element.
+    """
+    if element.source in source_file:
+        data = source_file[element.source][()]
+        attributes = source_file[element.source].attrs
     else:
-        return None  # or raise an error/exception as appropriate
-    
+        # Handle case where source does not exist, according to specifications
+        data = element.default_value
+        attributes = {}
+    return data, attributes
+
+def adjust_data_for_destination(data, element:TranslationElement):
+    """
+    Adjust the data according to the destination specifications.
+    """
+
+    # Optionally apply transformations
+    if element.transformation:
+        data = apply_transformation(data, element.transformation)    
+
+    # Prepend dimensions to reach minimum dimensionality:
+    while data.ndim < element.minimum_dimensionality:
+        data = np.expand_dims(data, axis=0)
+
+    # Perform unit conversion if both input and output units are specified
+    if element.source_units and element.destination_units:
+        data = perform_unit_conversion(data, element.source_units, element.destination_units)
+
+    return data
+
 def write_dataset(hdf5_file: h5py.File, path: str, data, compression=None, attributes={}):
-    """Write data to the specified path, creating groups as necessary, and setting attributes."""
-    create_path_if_not_exists(hdf5_file, '/'.join(path.split('/')[:-1]))  # Ensure the group exists
-    dset = hdf5_file.create_dataset(path, data=data, compression=compression)
-    for attr_name, attr_value in attributes.items():
-        dset.attrs[attr_name] = attr_value
+    """
+    Write data to the specified path, creating groups as necessary, and setting attributes.
+    Method is BRP-checked and approved. 
+    """
+    hdf5_file.require_group(f, path.rsplit('/', maxsplit=1)[0])
+    # check if the dataset exists and is compatible:
+    try: # if it does not exist, fill with new data
+        dset = hdf5_file.require_dataset(path, shape=data.shape, dtype=data.dtype, data=data, compression=compression, exact=True)
+    except TypeError: # if it exists, delete it and create it again
+        del hdf5_file[path]
+        dset = hdf5_file.create_dataset(path, data=data, compression=compression)
+    # update attributes. 
+    dset.attrs.update(attributes)    
 
 def copy_dataset(source_dataset: h5py.Dataset, dest_file: h5py.File, dest_path: str,
                  input_units=None, output_units=None, minimum_dimensionality=0):

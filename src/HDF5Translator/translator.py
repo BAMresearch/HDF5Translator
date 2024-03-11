@@ -1,11 +1,12 @@
 from pathlib import Path
 import h5py
+import numpy as np
 import yaml
 
 from HDF5Translator.utils.config_reader import read_translation_config
 from .translator_elements import TranslationElement
 from typing import List
-from .utils.hdf5_utils import apply_transformation, create_path_if_not_exists, copy_hdf5_tree
+from .utils.hdf5_utils import adjust_data_for_destination, apply_transformation, create_path_if_not_exists, copy_hdf5_tree, get_data_from_source, perform_unit_conversion, write_dataset
 import logging
 import shutil
 
@@ -39,14 +40,15 @@ def translate(source_path: Path, dest_path: Path, config_path:Path, template_pat
 
     # Step 2: Apply specific dataset translations, transformations, datatype conversions, etc.
     translations = [TranslationElement(**item) for item in config.get('translations',[])]
-    with h5py.File(source_path, 'r') as source_file, h5py.File(dest_path, "a") as dest_file:
-        # # Open or create the destination HDF5 file
-        # # mode = 'w' if overwrite else 'a'
-        # with h5py.File(dest_path, "a") as dest_file:
-        # Iterate through the translation elements and perform the necessary actions
 
-        for element in translations:
-            process_translation_element(source_file, dest_file, element)
+    with h5py.File(dest_path, "a") as dest_file:
+        if source_path:
+            with h5py.File(source_path, "r") as source_file:                        
+                for element in translations:
+                    process_translation_element(source_file, dest_file, element)
+        else:
+            for element in translations:
+                process_translation_element(None, dest_file, element)            
 
     # Step 3: Update or add attributes as specified in the configuration
     with h5py.File(dest_path, "a") as dest_file:
@@ -76,21 +78,37 @@ def process_translation_element(source_file, dest_file, element: TranslationElem
     # - Write the data to the destination file, applying any specified datatype conversions or unit changes.
     
     # Example: Read dataset from source
-    if element.source in source_file:
-        data = source_file[element.source][...]
 
-        # Optionally apply transformations
-        if element.transformation:
-            data = apply_transformation(data, element.transformation)
+    data, attributes = get_data_from_source(source_file, element) if source_file else element.default_value
 
-        # Ensure the destination path exists
-        create_path_if_not_exists(dest_file, element.destination)
+    # update translation element units if source_file is specified, and the source_path units attribute exists and is not None
+    if 'units' in attributes:
+        # specified HDF5 source units take preference over preconfigured element.source_units
+        element.source_units = attributes.get('units', element.source_units)
 
-        # Write data to destination, with optional attributes, compression, etc.
-        dest_file.create_dataset(element.destination, data=data, compression=element.compression)
-        # Add or update attributes as specified in the element
-        for attr_key, attr_value in element.attributes.items():
-            dest_file[element.destination].attrs[attr_key] = attr_value
-    else:
-        # Handle case where source does not exist, according to specifications
-        pass
+    # adjust the data for the destination, applying transformation, units, and dimensionality adjustments
+    data = adjust_data_for_destination(data, element)
+
+    # Optionally apply transformations
+    if element.transformation:
+        data = apply_transformation(data, element.transformation)    
+    # Prepend dimensions to reach minimum dimensionality:
+    while data.ndim < element.minimum_dimensionality:
+        data = np.expand_dims(data, axis=0)
+
+
+    # apply units transformation if needed:
+    if element.source_units and element.destination_units:
+        # Apply unit conversion
+        perform_unit_conversion(data, element.source_units, element.destination_units)
+        
+    write_dataset(dest_file, element, data)
+    # Ensure the destination path exists
+    create_path_if_not_exists(dest_file, element.destination)
+
+    # Write data to destination, with optional attributes, compression, etc.
+    dest_file.create_dataset(element.destination, data=data, compression=element.compression)
+    # Add or update attributes as specified in the element
+    for attr_key, attr_value in element.attributes.items():
+        dest_file[element.destination].attrs[attr_key] = attr_value
+
