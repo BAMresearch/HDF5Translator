@@ -1,7 +1,7 @@
 import argparse
 import sys
 from pathlib import Path
-from .utils.config_reader import read_translation_config
+# from .utils.config_reader import read_translation_config
 # Import or define your translation function here
 from .translator import translate
 import logging
@@ -63,8 +63,8 @@ def main(args=None):
         args.destination_file.unlink()  # Delete the file
 
     # Read translation configuration
-    translation_config = read_translation_config(args.config_file)
-    logging.debug({f"{translation_config=}"})
+    # translation_config = read_translation_config(args.config_file)
+    # logging.debug({f"{translation_config=}"})
 
     # Perform the translation
     translate(args.source_file, args.destination_file, args.config_file, args.template_file, args.delete)

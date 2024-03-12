@@ -3,10 +3,10 @@ import h5py
 import numpy as np
 import yaml
 
-from HDF5Translator.utils.config_reader import read_translation_config
+# from HDF5Translator.utils.config_reader import read_translation_config
 from .translator_elements import TranslationElement
 from typing import List
-from .utils.hdf5_utils import adjust_data_for_destination, apply_transformation, create_path_if_not_exists, copy_hdf5_tree, get_data_from_source, perform_unit_conversion, write_dataset
+from .utils.hdf5_utils import adjust_data_for_destination, apply_transformation, copy_hdf5_tree, get_data_and_attributes_from_source, perform_unit_conversion, write_dataset
 import logging
 import shutil
 
@@ -78,8 +78,11 @@ def process_translation_element(source_file, dest_file, element: TranslationElem
     # - Write the data to the destination file, applying any specified datatype conversions or unit changes.
     
     # Example: Read dataset from source
-
-    data, attributes = get_data_from_source(source_file, element) if source_file else element.default_value
+    if source_file:
+        data, attributes = get_data_and_attributes_from_source(source_file, element)
+    else:
+        data = element.default_value
+        attributes = element.attributes if element.attributes else {}
 
     # update translation element units if source_file is specified, and the source_path units attribute exists and is not None
     if 'units' in attributes:
@@ -104,10 +107,10 @@ def process_translation_element(source_file, dest_file, element: TranslationElem
         
     write_dataset(dest_file, element, data)
     # Ensure the destination path exists
-    create_path_if_not_exists(dest_file, element.destination)
+    # create_path_if_not_exists(dest_file, element.destination)
 
     # Write data to destination, with optional attributes, compression, etc.
-    dest_file.create_dataset(element.destination, data=data, compression=element.compression)
+    # dest_file.create_dataset(element.destination, data=data, compression=element.compression)
     # Add or update attributes as specified in the element
     for attr_key, attr_value in element.attributes.items():
         dest_file[element.destination].attrs[attr_key] = attr_value
