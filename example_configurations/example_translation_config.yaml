@@ -1,12 +1,15 @@
 # entire (sub-)trees can be copied in this section: 
-treecopy:
+tree_copy:
   - source: "/entry1/instrument/detector00"
     destination: "/entry1/instrument/detector00"
   - source: "/entry1/instrument/beamstop"
     destination: "/entry1/instrument/beamstop"
+  # - alternate_source_file: "flatfield.hdf5" # links are recommended, but if you want, you can copy a whole tree from another file here. 
+  #   source: "/entry1/instrument/detector/flatfield"
+  #   destination: "/entry1/instrument/detector/flatfield"
 
 # translations move datasets from source locations to destination locations in the destination file
-translations:
+data_copy:
   - source: "/entry1/instrument/detector00/count_time"
     destination: "/entry1/instrument/detector00/count_time"
     attributes:
@@ -73,8 +76,15 @@ attributes:
     NX_class: "NXtransformations"
 
 # the prunelist is a list of paths to remove from the destination file after translation
-prunelist:
+prune_list:
   - "/entry1/sample/psi-rotation"
   - "/entry1/sample/x-translation"
   - "/entry1/sample/z-translation"
   - "/entry1/instrument/detector00/distance"
+
+link_list:
+  - alternate_source_file: "mask.hdf5"
+    internal_or_external: "external"
+    source_path: "/"
+    destination_path: "/entry1/instrument/detector/mask"
+    soft_or_hard_link: "soft"
