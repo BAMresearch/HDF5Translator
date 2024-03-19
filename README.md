@@ -59,6 +59,24 @@ Use the template creator tool to generate a template HDF5 file.
 python -m HDF5Translator.tools.template_creator template_file.h5
 ```
 
+### EDF to HDF5 Convertor
+This can used to convert the EDF into H5 format file.
+
+```bash
+python -m HDF5Translator.tools.edf_to_h5.py -I SOURCE_FILE -O DESTINATION_FILE
+```
+
+Multiple source files can also be fed into the script. Destination file is optional
+
+### Excel to Yaml Translator
+This can be used to convert the excel files into yaml configuration file
+
+```bash
+python -m HDF5Translator.tools.excel_translator.py -I SOURCE_FILE -O DESTINATION_FILE
+```
+
+Example excel file is available in `src/test/testdata/UW_Xeuss`
+
 ## Components: 
 
 ### Done: 

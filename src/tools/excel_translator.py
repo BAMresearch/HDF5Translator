@@ -1,10 +1,15 @@
-import pandas as pd
-import yaml
+import argparse
+import logging
 import numpy as np
+import pandas as pd
 import sys
+import yaml
+
+from pathlib import Path
 
 
 def excel_translator(excel_file_location, yaml_file_location):
+
     sheet_names = ["tree_copy", "data_copy", "attributes", "prune_list", "link_list"]
     skip_rows = 2
     read_excel = pd.read_excel(
@@ -22,6 +27,7 @@ def excel_translator(excel_file_location, yaml_file_location):
                 for index, row in tree_copy_df.iterrows():
                     tree_dict_2 = {}
                     if row.to_dict()["source"] and row.to_dict()["destination"] == "NA":
+
                         continue
 
                     for key in row.to_dict().keys():
@@ -34,6 +40,7 @@ def excel_translator(excel_file_location, yaml_file_location):
                 yaml.dump(tree_copy_dict, file)
 
             if key == "data_copy":
+
                 data_copy_df = read_excel["data_copy"]
                 data_copy_df = data_copy_df.fillna("NA")
                 data_copy_dict = {}
@@ -57,6 +64,7 @@ def excel_translator(excel_file_location, yaml_file_location):
                             data_copy_df.iloc[index + attrib_index]["attribute_name"]
                             != "NA"
                         ):
+
                             attribute_dict[
                                 data_copy_df.iloc[index + attrib_index][
                                     "attribute_name"
@@ -80,11 +88,13 @@ def excel_translator(excel_file_location, yaml_file_location):
                 yaml.dump(data_copy_dict, file)
 
             if key == "attributes":
+
                 attributes_df = read_excel["attributes"].fillna("NA")
                 attribute_dict = {}
                 attribute_dict_2 = {}
 
                 for index, row in attributes_df.iterrows():
+
                     if row["destination"] == "NA":
                         continue
 
@@ -96,6 +106,7 @@ def excel_translator(excel_file_location, yaml_file_location):
                             attributes_df.iloc[index + attrib_index]["attribute_name"]
                             != "NA"
                         ):
+
                             attribute_dict_3[
                                 attributes_df.iloc[index + attrib_index][
                                     "attribute_name"
@@ -107,6 +118,7 @@ def excel_translator(excel_file_location, yaml_file_location):
                             attrib_index += 1
 
                         if len(attribute_dict_3.keys()) > 0:
+
                             attribute_dict_2[row["destination"]] = attribute_dict_3
 
                             # attribute_dict['attributes'] = attribute_dict_2
@@ -119,6 +131,7 @@ def excel_translator(excel_file_location, yaml_file_location):
                 yaml.dump(attribute_dict, file)
 
             if key == "prune_list":
+
                 prune_list_dict = {}
                 prune_list_df = read_excel["prune_list"].fillna("NA")
                 prune_list_array = [
@@ -131,11 +144,13 @@ def excel_translator(excel_file_location, yaml_file_location):
                 yaml.dump(prune_list_dict, file)
 
             if key == "link_list":
+
                 link_list_dict = {}
                 link_list_df = read_excel["link_list"].fillna("NA")
                 link_list_array = []
 
                 for index, row in link_list_df.iterrows():
+
                     link_list_dict_2 = {}
                     for key in row.to_dict().keys():
                         if row.to_dict()[key] == "NA":
@@ -152,6 +167,39 @@ def excel_translator(excel_file_location, yaml_file_location):
     file.close()
 
 
+def main(args=None):
+
+    if args is None:
+        args = sys.argv[1:]
+
+    parser = argparse.ArgumentParser(
+        description="Translates the excel file \
+                                     into the yaml configuration file for \
+                                    HDF5Translator"
+    )
+    parser.add_argument(
+        "-O",
+        "--destination_file",
+        required=False,
+        type=Path,
+        help="Path to the destination yaml file",
+    )
+    parser.add_argument(
+        "-I",
+        "--source_file",
+        required=True,
+        type=Path,
+        help="Path to the source excel file outlining what to \
+                            copy from where",
+    )
+
+    args = parser.parse_args(args)
+
+    logging.info("excel to yaml configuration translation started")
+
+    excel_translator(args.source_file, args.destination_file)
+
+
 if __name__ == "__main__":
     """
     excel_file_location: str
@@ -160,7 +208,5 @@ if __name__ == "__main__":
                         yaml output file location including the file name
 
     """
-    excel_file_location = sys.argv[1]
-    yaml_file_location = sys.argv[2]
 
-    excel_translator(excel_file_location, yaml_file_location)
+    main()
