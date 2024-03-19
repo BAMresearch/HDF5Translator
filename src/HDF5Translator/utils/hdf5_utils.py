@@ -10,6 +10,9 @@ from HDF5Translator.translator_elements import TranslationElement
 ureg = UnitRegistry()
 Q_ = ureg.Quantity
 
+
+
+
 def apply_transformation(data, transformation):
     """Apply the given transformation function to the data."""
     return transformation(data) 
@@ -40,12 +43,12 @@ def get_data_and_attributes_from_source(source_file: h5py.File, element:Translat
 
 def cast_to_datatype(data, element:TranslationElement):
     """determines the datatype we need the data to be, recasting it if needed"""
-    if element.datatype is not None:
-        logging.debug(f"attempting to cast value {data} into datatype: {element.datatype}")
+    if element.data_type is not None:
+        logging.debug(f"attempting to cast value {data} into data_type: {element.data_type}")
         try:
-            data = element.datatype(data)
+            data = element.data_type(data)
         except ValueError:
-            logging.info(f"could not cast value {data} into datatype {element.datatype}, defaulting to {element.default_value} for {element.destination}")
+            logging.info(f"could not cast value {data} into data_type {element.data_type}, defaulting to {element.default_value} for {element.destination}")
             data = element.default
 
 def add_dimensions_if_needed(data, element:TranslationElement):
@@ -95,7 +98,7 @@ def adjust_data_for_destination(data, element:TranslationElement, attributes):
         data = apply_transformation(data, element.transformation)    
 
     # Perform unit conversion if both input and output units are specified
-    if (source_units is not None) and element.destination_units:
+    if (element.source_units is not None) and element.destination_units:
         data = perform_unit_conversion(data, element.source_units, element.destination_units)
 
     # cast to datatype
@@ -112,7 +115,8 @@ def write_dataset(hdf5_file: h5py.File, path: str, data, compression=None, attri
     """
     Write data to the specified path, creating groups as necessary, and setting attributes.
     """
-    hdf5_file.require_group(f, path.rsplit('/', maxsplit=1)[0])
+
+    hdf5_file.require_group(path.rsplit('/', maxsplit=1)[0])
     # check if the dataset exists and is compatible:
     try: # if it does not exist, fill with new data
         dset = hdf5_file.require_dataset(path, shape=data.shape, dtype=data.dtype, data=data, compression=compression, exact=True)

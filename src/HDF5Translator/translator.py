@@ -129,7 +129,7 @@ def process_translation_element(h5_in: Union[h5py.File|None], h5_out: h5py.File,
         element.source_units = attributes.get('units', element.source_units)
 
     # adjust the data for the destination, applying transformation, units, and dimensionality adjustments
-    data = adjust_data_for_destination(data, element)
+    data = adjust_data_for_destination(data, element, attributes=attributes)
 
     # Optionally apply transformations
     if element.transformation:
@@ -144,7 +144,7 @@ def process_translation_element(h5_in: Union[h5py.File|None], h5_out: h5py.File,
         # Apply unit conversion
         perform_unit_conversion(data, element.source_units, element.destination_units)
         
-    write_dataset(h5_out, element, data)
+    write_dataset(h5_out, element.destination, data, compression=element.compression, attributes=element.attributes)
     # Ensure the destination path exists
     # create_path_if_not_exists(dest_file, element.destination)
 
