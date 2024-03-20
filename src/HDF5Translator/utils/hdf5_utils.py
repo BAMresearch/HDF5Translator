@@ -176,11 +176,17 @@ def write_dataset(
 
     hdf5_file.require_group(path.rsplit("/", maxsplit=1)[0])
     # check if the dataset exists and is compatible:
+    if isinstance(data, np.ndarray):
+        shape = data.shape
+        dtype = data.dtype
+    else:
+        shape = None
+        dtype = type(data)
     try:  # if it does not exist, fill with new data
         dset = hdf5_file.require_dataset(
             path,
-            shape=data.shape,
-            dtype=data.dtype,
+            shape=shape,
+            dtype=dtype,
             data=data,
             compression=compression,
             exact=True,

@@ -152,12 +152,16 @@ def process_translation_element(
     # adjust the data for the destination, applying transformation, units, and dimensionality adjustments
     data = adjust_data_for_destination(data, element, attributes=attributes)
 
+    # escape clause
+    if data is None:
+        logging.warning(
+            f"Could not find valid data or default for {element.source=}, {element.destination=}, skipping..."
+        )
+        return
+
     # Optionally apply transformations
     if element.transformation:
         data = apply_transformation(data, element.transformation)
-    # Prepend dimensions to reach minimum dimensionality: # already done in adjust_data_for_destination
-    # while data.ndim < element.minimum_dimensionality:
-    #     data = np.expand_dims(data, axis=0)
 
     # apply units transformation if needed:
     if element.source_units and element.destination_units:
