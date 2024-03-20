@@ -7,7 +7,8 @@ from pint import UnitRegistry
 
 from HDF5Translator.translator_elements import TranslationElement
 
-ureg = UnitRegistry()
+ureg = UnitRegistry(auto_reduce_dimensions=True)
+# ureg.define(r"pixels = 1 = px")
 Q_ = ureg.Quantity
 
 
@@ -140,22 +141,24 @@ def adjust_data_for_destination(data, element: TranslationElement, attributes):
     # apply default value if data is None
     data = if_data_is_none(data, element)
 
-    # Optionally apply transformations
-    if element.transformation:
-        data = apply_transformation(data, element.transformation)
-
-    # Perform unit conversion if both input and output units are specified
-    if (element.source_units is not None) and element.destination_units:
-        data = perform_unit_conversion(
-            data, element.source_units, element.destination_units
+    if data is None:
+        logging.warning(
+            f"Could not find valid data or default for {element.source=}, {element.destination=}, skipping..."
         )
-
-    # add or update destination_units in attributes
-    if element.destination_units is not None:
-        attributes.update({"units": element.destination_units})
+        return None
 
     # cast to datatype
     data = cast_to_datatype(data, element)
+
+    # # Optionally apply transformations
+    # if element.transformation:
+    #     data = apply_transformation(data, element.transformation)
+
+    # # Perform unit conversion if both input and output units are specified
+    # if (element.source_units is not None) and element.destination_units:
+    #     data = perform_unit_conversion(
+    #         data, element.source_units, element.destination_units
+    #     )
 
     # fix string datatypes so h5py can handle them, otherwise it complains about not being able to store '<U4' type
     if isinstance(data, str):
@@ -199,53 +202,54 @@ def write_dataset(
     dset.attrs.update(attributes)
 
 
-def copy_dataset(
-    source_dataset: h5py.Dataset,
-    dest_file: h5py.File,
-    dest_path: str,
-    input_units=None,
-    output_units=None,
-    minimum_dimensionality=0,
-):
-    """
-    Copies a dataset from the source to the destination path, including attributes,
-    with optional unit conversion and dimensionality adjustment.
+# unused:
+# def copy_dataset(
+#     source_dataset: h5py.Dataset,
+#     dest_file: h5py.File,
+#     dest_path: str,
+#     input_units=None,
+#     output_units=None,
+#     minimum_dimensionality=0,
+# ):
+#     """
+#     Copies a dataset from the source to the destination path, including attributes,
+#     with optional unit conversion and dimensionality adjustment.
 
-    Args:
-        source_dataset (h5py.Dataset): The source dataset to copy.
-        dest_file (h5py.File): The destination HDF5 file object.
-        dest_path (str): The destination path in the HDF5 file.
-        input_units (str, optional): The units of the source dataset's data.
-        output_units (str, optional): The units to convert the dataset's data to.
-        minimum_dimensionality (int, optional): The minimum number of dimensions the dataset should have.
-    """
-    data = source_dataset[...]
+#     Args:
+#         source_dataset (h5py.Dataset): The source dataset to copy.
+#         dest_file (h5py.File): The destination HDF5 file object.
+#         dest_path (str): The destination path in the HDF5 file.
+#         input_units (str, optional): The units of the source dataset's data.
+#         output_units (str, optional): The units to convert the dataset's data to.
+#         minimum_dimensionality (int, optional): The minimum number of dimensions the dataset should have.
+#     """
+#     data = source_dataset[...]
 
-    # Perform unit conversion if both input and output units are specified
-    if input_units and output_units:
-        data = perform_unit_conversion(data, input_units, output_units)
+#     # Perform unit conversion if both input and output units are specified
+#     if input_units and output_units:
+#         data = perform_unit_conversion(data, input_units, output_units)
 
-    # Adjust data dimensionality if necessary
-    while data.ndim < minimum_dimensionality:
-        data = np.expand_dims(data, axis=0)
+#     # Adjust data dimensionality if necessary
+#     while data.ndim < minimum_dimensionality:
+#         data = np.expand_dims(data, axis=0)
 
-    # Ensure destination group exists
-    dest_group_path = "/".join(dest_path.split("/")[:-1])
-    if dest_group_path and dest_group_path not in dest_file:
-        dest_file.create_group(dest_group_path)
+#     # Ensure destination group exists
+#     dest_group_path = "/".join(dest_path.split("/")[:-1])
+#     if dest_group_path and dest_group_path not in dest_file:
+#         dest_file.create_group(dest_group_path)
 
-    # Copy dataset
-    write_dataset(
-        dest_file,
-        dest_path,
-        data,
-        compression=source_dataset.compression,
-        attributes=attributes,
-    )
-    # dset = dest_file.create_dataset(dest_path, data=data, compression=source_dataset.compression)
+#     # Copy dataset
+#     write_dataset(
+#         dest_file,
+#         dest_path,
+#         data,
+#         compression=source_dataset.compression,
+#         attributes=attributes,
+#     )
+#     # dset = dest_file.create_dataset(dest_path, data=data, compression=source_dataset.compression)
 
-    # Copy attributes
-    dset.attrs[name] = value
+#     # Copy attributes
+#     dset.attrs[name] = value
 
 
 def perform_unit_conversion(data, input_units, output_units):
@@ -275,7 +279,6 @@ def perform_unit_conversion(data, input_units, output_units):
             f"Could not convert {data=} from {input_units=} to {output_units=}, skipping unit conversion"
         )
         return data
-
     return converted
 
 

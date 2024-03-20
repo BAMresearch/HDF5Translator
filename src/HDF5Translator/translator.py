@@ -146,11 +146,12 @@ def process_translation_element(
         attributes = element.attributes if element.attributes else {}
 
     # update translation element units if source_file is specified, and the source_path units attribute exists and is not None
+    source_units = element.source_units
     if "units" in attributes:
         # specified HDF5 source units take preference over preconfigured element.source_units
-        element.source_units = attributes.get("units", element.source_units)
+        source_units = attributes.get("units", element.source_units)
 
-    # adjust the data for the destination, applying transformation, units, and dimensionality adjustments
+    # adjust the data for the destination, applying type and dimensionality adjustments
     data = adjust_data_for_destination(data, element, attributes=attributes)
 
     # escape clause
@@ -165,9 +166,15 @@ def process_translation_element(
         data = apply_transformation(data, element.transformation)
 
     # apply units transformation if needed:
-    if element.source_units and element.destination_units:
+    if source_units and element.destination_units:
         # Apply unit conversion
-        perform_unit_conversion(data, element.source_units, element.destination_units)
+        perform_unit_conversion(data, source_units, element.destination_units)
+
+    # add or update destination_units in attributes
+    if source_units is not None:
+        element.attributes.update({"units": element.source_units})
+    if element.destination_units is not None:
+        element.attributes.update({"units": element.destination_units})
 
     write_dataset(
         h5_out,
@@ -176,8 +183,6 @@ def process_translation_element(
         compression=element.compression,
         attributes=element.attributes,
     )
-    # Ensure the destination path exists
-    # create_path_if_not_exists(dest_file, element.destination)
 
     # Write data to destination, with optional attributes, compression, etc.
     # dest_file.create_dataset(element.destination, data=data, compression=element.compression)
