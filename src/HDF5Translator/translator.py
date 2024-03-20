@@ -83,8 +83,8 @@ def translate(
     with h5py.File(dest_file, "a") as h5_out:
         for prune in config.get("prune_list", []):
             print(f"pruning {prune=}")
-            if prune.get("path"):
-                del dest_file[prune["path"]]
+            if prune in h5_out:
+                del h5_out[prune["path"]]
 
     # Step 5: Add links from the link_list
     link_list = [LinkElement(**item) for item in config.get("link_list", [])]
