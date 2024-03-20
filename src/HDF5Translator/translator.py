@@ -100,6 +100,7 @@ def translate(
                         f"source cannot be none for external link translations... skipping"
                     )
                     continue
+                logging.info(f"adding link {element=}")
                 with h5py.File(sf, "r") as h5_in:
                     process_link_element(h5_in, h5_out, element)
             else:
