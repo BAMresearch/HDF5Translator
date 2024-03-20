@@ -1,13 +1,13 @@
 from pathlib import Path
+from types import NoneType
+from typing import Union
 import h5py
-import numpy as np
 import yaml
 
 from HDF5Translator.utils.data_utils import sanitize_data
 
 # from HDF5Translator.utils.config_reader import read_translation_config
 from .translator_elements import LinkElement, TranslationElement
-from typing import List, Union
 from .utils.hdf5_utils import (
     copy_hdf5_tree,
     get_data_and_attributes_from_source,
@@ -27,7 +27,7 @@ def translate(
     source_file: Path,
     dest_file: Path,
     config_file: Path,
-    template_file: Path = None,
+    template_file: Union[Path, None] = None,
     overwrite: bool = False,
 ):
     """Performs the translation of an HDF5 file based on the given configuration.

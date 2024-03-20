@@ -9,6 +9,10 @@ ureg = UnitRegistry(auto_reduce_dimensions=True)
 # ureg.define(r"pixels = 1 = px")
 Q_ = ureg.Quantity
 
+doc = """
+This module contains utility functions for data manipulation, such as casting to a specific datatype, adding dimensions, and unit conversion.
+"""
+
 
 def apply_transformation(data, transformation):
     """Apply the given transformation function to the data."""
@@ -37,7 +41,7 @@ def cast_to_datatype(data, element: TranslationElement):
             logging.info(
                 f"could not cast value {data} into data_type {element.data_type}, defaulting to {element.default_value} for {element.destination}"
             )
-            data = element.default
+            data = element.default_value
 
     return data
 
@@ -65,9 +69,7 @@ def add_dimensions_if_needed(data, element: TranslationElement):
     return data
 
 
-def select_source_units(
-    element: TranslationElement, attributes: Union[dict | None] = None
-):
+def select_source_units(element: TranslationElement, attributes: [dict | None] = None):
     """
     This singular function dictates what takes precedence: the units specified in the source file, or the units specified in the translation configuration.
     If both are none, result remains none. If both are set, the source file units are chosen.

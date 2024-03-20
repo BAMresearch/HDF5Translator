@@ -5,12 +5,16 @@ import numpy as np
 
 from HDF5Translator.translator_elements import TranslationElement
 
+doc = """
+This module contains utility functions for working with HDF5 files, such as copying trees, reading data, and writing data.
+"""
+
 
 def get_data_and_attributes_from_source(
     source_file: h5py.File, element: TranslationElement
 ):
     """
-    Get data from the source file according to the given translation element.
+    Get data and attributes from the source file according to the given translation element.
     """
 
     # check if source data exists:
