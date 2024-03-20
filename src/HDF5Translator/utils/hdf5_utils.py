@@ -58,6 +58,11 @@ def cast_to_datatype(data, element: TranslationElement):
                 "Type conversion must be supplied with a data type in element.data_type, something must have gone wrong. returning data as is without conversion"
             )
             return data
+
+        if data is None:
+            # can't do anything, return none
+            return None
+
         try:
             data = element.data_type(data)
         except ValueError:
@@ -109,6 +114,22 @@ def select_source_units(
         return element.source_units
 
 
+def if_data_is_none(data, element):
+
+    if data is None:
+        if element.default_value is None:
+            logging.warning(
+                f"no data or default value specified for {element.destination}, returning None."
+            )
+            return None
+        else:
+            logging.warning(
+                f"no data specified for {element.destination}, returning default value {element.default_value}."
+            )
+            data = element.default_value
+    return data
+
+
 def adjust_data_for_destination(data, element: TranslationElement, attributes):
     """
     Adjust the data according to the destination specifications.
@@ -116,6 +137,8 @@ def adjust_data_for_destination(data, element: TranslationElement, attributes):
         and the source hdf5 file has units specified in the attributes,
         the source file attribute units are applied.
     """
+    # apply default value if data is None
+    data = if_data_is_none(data, element)
 
     # Optionally apply transformations
     if element.transformation:
@@ -137,12 +160,9 @@ def adjust_data_for_destination(data, element: TranslationElement, attributes):
     # fix string datatypes so h5py can handle them, otherwise it complains about not being able to store '<U4' type
     if isinstance(data, str):
         data = data.encode("utf-8")
-        # data = np.string_(data)
 
     # add dimensions if needed
     data = add_dimensions_if_needed(data, element)
-
-    source_units = select_source_units(element, attributes)
 
     return data
 
