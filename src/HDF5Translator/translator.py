@@ -3,16 +3,21 @@ import h5py
 import numpy as np
 import yaml
 
+from HDF5Translator.utils.data_utils import sanitize_data
+
 # from HDF5Translator.utils.config_reader import read_translation_config
 from .translator_elements import LinkElement, TranslationElement
 from typing import List, Union
 from .utils.hdf5_utils import (
-    adjust_data_for_destination,
-    apply_transformation,
     copy_hdf5_tree,
     get_data_and_attributes_from_source,
-    perform_unit_conversion,
     write_dataset,
+)
+from .utils.data_utils import (
+    add_dimensions_if_needed,
+    apply_transformation,
+    perform_unit_conversion,
+    select_source_units,
 )
 import logging
 import shutil
@@ -102,7 +107,7 @@ def translate(
 
 
 def process_link_element(
-    h5_in: Union[h5py.File | None], h5_out: h5py.File, element: LinkElement
+    h5_in: [h5py.File | None], h5_out: h5py.File, element: LinkElement
 ):
 
     if element.internal_or_external == "internal":
@@ -123,7 +128,7 @@ def process_link_element(
 
 
 def process_translation_element(
-    h5_in: Union[h5py.File | None], h5_out: h5py.File, element: TranslationElement
+    h5_in: [h5py.File | None], h5_out: h5py.File, element: TranslationElement
 ):
     """Processes a single translation element, applying the specified translation to the HDF5 files.
 
@@ -132,43 +137,35 @@ def process_translation_element(
         dest_file: The destination HDF5 file object.
         element (TranslationElement): The translation element specifying the translation rule.
     """
-    # Here, you would implement the logic to:
-    # - Check if the source dataset/group exists.
-    # - Apply any specified transformations.
-    # - Create the destination path if it doesn't exist.
-    # - Write the data to the destination file, applying any specified datatype conversions or unit changes.
 
-    # Example: Read dataset from source
+    # Read dataset and attributes from source if specified, otherwise go for default
     if h5_in:
         data, attributes = get_data_and_attributes_from_source(h5_in, element)
     else:
         data = element.default_value
         attributes = element.attributes if element.attributes else {}
 
-    # update translation element units if source_file is specified, and the source_path units attribute exists and is not None
-    source_units = element.source_units
-    if "units" in attributes:
-        # specified HDF5 source units take preference over preconfigured element.source_units
-        source_units = attributes.get("units", element.source_units)
-
-    # adjust the data for the destination, applying type and dimensionality adjustments
-    data = adjust_data_for_destination(data, element, attributes=attributes)
+    # adjust the data for the destination, applying type
+    data = sanitize_data(data, element)
 
     # escape clause
-    if data is None:
-        logging.warning(
-            f"Could not find valid data or default for {element.source=}, {element.destination=}, skipping..."
-        )
+    if data is None:  # adjust_data has already complained about this
         return
 
-    # Optionally apply transformations
+    # Optionally apply transformations / lambda functions ; not implemented yet
     if element.transformation:
         data = apply_transformation(data, element.transformation)
+
+    # get the correct source units to work with:
+    source_units = select_source_units(element, attributes)
 
     # apply units transformation if needed:
     if source_units and element.destination_units:
         # Apply unit conversion
         perform_unit_conversion(data, source_units, element.destination_units)
+
+    # add dimensions if needed
+    data = add_dimensions_if_needed(data, element)
 
     # add or update destination_units in attributes
     if source_units is not None:
