@@ -84,7 +84,7 @@ def translate(
     # Step 4: remove (prune) any datasets or groups as specified in the configuration
     with h5py.File(dest_file, "r+") as h5_out:
         for prune in config.get("prune_list", []):
-            print(f"pruning {prune=}")
+            logging.info(f"pruning {prune}")
             if prune in h5_out:
                 del h5_out[prune]
 
