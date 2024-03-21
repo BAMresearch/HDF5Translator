@@ -1,12 +1,14 @@
+import json
 import logging
-from typing import Union
+from typing import Type, Union
 import numpy as np
 from pint import UnitRegistry
 
 from HDF5Translator.translator_elements import TranslationElement
 
 ureg = UnitRegistry(auto_reduce_dimensions=True)
-# ureg.define(r"pixels = 1 = px")
+ureg.define(r"eigerpixels = 0.075 mm = eigerpixel = eigerpx")
+ureg.define(r"pilatuspixels = 0.172 mm = pilatuspixel = pilatuspx")
 Q_ = ureg.Quantity
 
 doc = """
@@ -36,7 +38,10 @@ def cast_to_datatype(data, element: TranslationElement):
             return None
 
         try:
-            data = element.data_type(data)
+            if isinstance(data, np.ndarray):
+                data=data.astype(element.data_type)
+            else:
+                data = element.data_type(data)
         except ValueError:
             logging.info(
                 f"could not cast value {data} into data_type {element.data_type}, defaulting to {element.default_value} for {element.destination}"
@@ -100,6 +105,34 @@ def if_data_is_none(data, element):
     return data
 
 
+def sanitize_attribute(value:str, default_type:Type=float) -> Union[str, float, np.ndarray]:
+    """
+    Tries to convert the attribute to:
+      - numpy array
+      - value
+      - leave as string
+    """
+    value = try_string_as_array(value)
+    if isinstance(value, str): # conversion did not succeed
+        try: 
+            value = default_type(value)
+        except ValueError:
+            pass
+    return value
+
+
+def try_string_as_array(value:str, data_type:Type = None) -> Union[str, np.ndarray]:
+    """
+    Tries to convert the value to a numpy array
+    """
+    if isinstance(value, str):
+        value = value.strip()
+        if len(value) > 0:
+            if value[0] == '[': # sign it's an array
+                value=np.array(json.loads(value), dtype=data_type)
+    return value
+
+
 def sanitize_data(data, element: TranslationElement):
     """
     Adjust the data according to the destination specifications.
@@ -114,6 +147,9 @@ def sanitize_data(data, element: TranslationElement):
             f"Could not find valid data or default for {element.source=}, {element.destination=}, skipping..."
         )
         return None
+
+    # check if it is an array by checking the first character, and try to interpret it as such
+    data=try_string_as_array(data, data_type=element.data_type)
 
     # cast to datatype
     data = cast_to_datatype(data, element)
@@ -137,7 +173,7 @@ def perform_unit_conversion(data, input_units, output_units):
     Returns:
         np.ndarray: The data converted to the output units.
     """
-    logging.debug(f"Converting {data=} from {input_units=} to {output_units=}")
+    logging.debug(f"Converting {data=} of type {type(data)} from {input_units=} to {output_units=}")
     try:
         quantity = Q_(data, input_units)
     except:
@@ -152,4 +188,5 @@ def perform_unit_conversion(data, input_units, output_units):
             f"Could not convert {data=} from {input_units=} to {output_units=}, skipping unit conversion"
         )
         return data
+    logging.debug(f'converted value: {converted}')
     return converted

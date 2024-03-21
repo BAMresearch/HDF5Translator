@@ -25,8 +25,8 @@ def evaluate_type(name: str) -> Type:
 
 @define
 class TranslationElement:
-    source: str
     destination: str
+    source: Optional[str] = None
     data_type: Optional[str | Type] = None
     source_units: Optional[str] = None
     destination_units: Optional[str] = None

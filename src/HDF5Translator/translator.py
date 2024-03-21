@@ -17,6 +17,7 @@ from .utils.data_utils import (
     add_dimensions_if_needed,
     apply_transformation,
     perform_unit_conversion,
+    sanitize_attribute,
     select_source_units,
 )
 import logging
@@ -73,11 +74,12 @@ def translate(
     attributes = config.get("attributes", [])
     with h5py.File(dest_file, "a") as h5_out:
         for attributeLocation, attributeDict in attributes.items():
-            logging.info(f"adding {attributeLocation=}, {attributeDict=}")
+            ad = {k: sanitize_attribute(v) for k, v in attributeDict.items()}
+            logging.info(f"adding {attributeLocation=}, {ad=}")
             if not attributeLocation in h5_out:
                 # create the destination as a group, because I know nothing of a dataset to be created..
                 h5_out.require_group(attributeLocation)
-            h5_out[attributeLocation].attrs.update(attributeDict)
+            h5_out[attributeLocation].attrs.update(ad)
 
     # Step 4: remove (prune) any datasets or groups as specified in the configuration
     with h5py.File(dest_file, "r+") as h5_out:
@@ -140,7 +142,7 @@ def process_translation_element(
     """
 
     # Read dataset and attributes from source if specified, otherwise go for default
-    if h5_in:
+    if h5_in and element.source:
         data, attributes = get_data_and_attributes_from_source(h5_in, element)
     else:
         data = element.default_value
@@ -163,7 +165,7 @@ def process_translation_element(
     # apply units transformation if needed:
     if source_units and element.destination_units:
         # Apply unit conversion
-        perform_unit_conversion(data, source_units, element.destination_units)
+        data = perform_unit_conversion(data, source_units, element.destination_units)
 
     # add dimensions if needed
     data = add_dimensions_if_needed(data, element)
@@ -173,6 +175,8 @@ def process_translation_element(
         element.attributes.update({"units": element.source_units})
     if element.destination_units is not None:
         element.attributes.update({"units": element.destination_units})
+
+    logging.debug(f'writing to {h5_out=}, in path {element.destination}, {data=}, using compression {element.compression} and attributes {element.attributes}')
 
     write_dataset(
         h5_out,
@@ -186,4 +190,4 @@ def process_translation_element(
     # dest_file.create_dataset(element.destination, data=data, compression=element.compression)
     # Add or update attributes as specified in the element
     for attr_key, attr_value in element.attributes.items():
-        h5_out[element.destination].attrs[attr_key] = attr_value
+        h5_out[element.destination].attrs[attr_key] = sanitize_attribute(attr_value)

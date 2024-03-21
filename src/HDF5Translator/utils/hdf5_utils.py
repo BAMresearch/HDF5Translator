@@ -65,7 +65,7 @@ def write_dataset(
             compression=compression,
             exact=True,
         )
-    except TypeError:  # if it exists but is incompatible, delete it and create it again
+    except (TypeError, ValueError):  # if it exists but is incompatible, delete it and create it again
         if path in hdf5_file:
             del hdf5_file[path]
         dset = hdf5_file.create_dataset(path, data=data, compression=compression)
