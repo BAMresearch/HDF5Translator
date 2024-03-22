@@ -7,35 +7,8 @@ from pathlib import Path
 from .translator import translate
 import logging
 from datetime import datetime
-
-
-def configure_logging(verbose: bool = False, very_verbose: bool = False):
-    """Configure logging to output to stdout and a log file."""
-    log_format = "%(asctime)s - %(levelname)s - %(message)s"
-    log_datefmt = "%Y-%m-%d %H:%M:%S"
-    log_filename = f"HDF5Translator_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-
-    if very_verbose: 
-        level = logging.DEBUG
-    elif verbose:
-        level = logging.INFO
-    else:
-        level = logging.WARNING
-
-    # Configure root logger
-    logging.basicConfig(
-        level=level,
-        format=log_format,
-        datefmt=log_datefmt,
-        handlers=[logging.FileHandler(log_filename), logging.StreamHandler(sys.stdout)],
-    )
-
-
-def file_exists_and_is_file(file_path: Path):
-    """Check if the file exists and is a file."""
-    assert file_path.exists() and file_path.is_file(), logging.error(
-        f"{file_path} does not exist or is not a file."
-    )
+from .utils.configure_logging import configure_logging
+from .utils.validators import file_exists_and_is_file
 
 
 def main(args=None):
@@ -89,6 +62,12 @@ def main(args=None):
         help="Increase output verbosity to DEBUG level.",
     )
     parser.add_argument(
+        "-l",
+        "--logging",
+        action="store_true",
+        help="Write log out to a timestamped file.",
+    )
+    parser.add_argument(
         "-d",
         "--delete",
         action="store_true",
@@ -97,7 +76,7 @@ def main(args=None):
 
     # Parse arguments
     args = parser.parse_args(args)
-    configure_logging(args.verbose, args.very_verbose)
+    configure_logging(args.verbose, args.very_verbose, log_to_file=args.logging, log_file_prepend="HDF5Translator_")
     logging.info("HDF5Translator started.")
 
     # Validate file existence
