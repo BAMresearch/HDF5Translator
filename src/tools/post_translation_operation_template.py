@@ -102,7 +102,7 @@ def main(filename: Path, auxilary_files: list[Path] = None):
 
 ### in principle, the code below does not need changing for use of the tremplate. ###
 
-def validate_file(file_path: [str| Path]) -> Path:
+def validate_file(file_path: str| Path) -> Path:
     """
     Validates that the file exists and has a valid extension.
 

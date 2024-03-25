@@ -110,7 +110,7 @@ def translate(
 
 
 def process_link_element(
-    h5_in: [h5py.File | None], h5_out: h5py.File, element: LinkElement
+    h5_in: h5py.File | None, h5_out: h5py.File, element: LinkElement
 ):
 
     if element.internal_or_external == "internal":
@@ -131,7 +131,7 @@ def process_link_element(
 
 
 def process_translation_element(
-    h5_in: [h5py.File | None], h5_out: h5py.File, element: TranslationElement
+    h5_in: h5py.File | None, h5_out: h5py.File, element: TranslationElement
 ):
     """Processes a single translation element, applying the specified translation to the HDF5 files.
 
