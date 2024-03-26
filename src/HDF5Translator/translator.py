@@ -15,7 +15,7 @@ from .utils.hdf5_utils import (
 )
 from .utils.data_utils import (
     add_dimensions_if_needed,
-    # apply_transformation,
+    apply_transformation,
     perform_unit_conversion,
     sanitize_attribute,
     select_source_units,
@@ -155,9 +155,9 @@ def process_translation_element(
     if data is None:  # adjust_data has already complained about this
         return
 
-    # # Optionally apply transformations / lambda functions ; not implemented yet
-    # if element.transformation:
-    #     data = apply_transformation(data, element.transformation)
+    # Optionally apply transformations / lambda functions ; not implemented yet
+    if element.transformation:
+        data = apply_transformation(data, element.transformation)
 
     # get the correct source units to work with:
     source_units = select_source_units(element, attributes)

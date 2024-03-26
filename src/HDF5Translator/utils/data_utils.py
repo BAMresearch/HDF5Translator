@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Type, Union
+from typing import Callable, Type, Union
 import numpy as np
 from pint import UnitRegistry
 
@@ -16,9 +16,15 @@ This module contains utility functions for data manipulation, such as casting to
 """
 
 
-# def apply_transformation(data, transformation):
-#     """Apply the given transformation function to the data."""
-#     return transformation(data)
+def apply_transformation(data, transformation: Callable):
+    """Apply the given transformation function to the data."""
+    try:
+        data = transformation(data)
+    except Exception as e:
+        logging.warning(
+            f"Could not apply custom transformation {transformation} to {data=}, skipping transformation..."
+        )
+    return data
 
 
 def cast_to_datatype(data, element: TranslationElement):
