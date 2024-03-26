@@ -63,7 +63,7 @@ python -m HDF5Translator.tools.template_creator template_file.h5
 This can used to convert the EDF into H5 format file.
 
 ```bash
-python -m HDF5Translator.tools.edf_to_h5.py -I SOURCE_FILE -O DESTINATION_FILE
+python src/tools/edf_to_h5.py -I SOURCE_FILE -O DESTINATION_FILE
 ```
 
 Multiple source files can also be fed into the script. Destination file is optional
@@ -72,7 +72,7 @@ Multiple source files can also be fed into the script. Destination file is optio
 This can be used to convert the excel files into yaml configuration file
 
 ```bash
-python -m HDF5Translator.tools.excel_translator.py -I SOURCE_FILE -O DESTINATION_FILE
+python src/tools/excel_translator.py -I SOURCE_FILE -O DESTINATION_FILE
 ```
 
 Example excel file is available in `example_configurations/UW_Xeuss`
