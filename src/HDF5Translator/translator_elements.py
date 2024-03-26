@@ -5,7 +5,7 @@ from typing import Optional, Callable, Type
 import numpy as np
 import builtins
 
-from HDF5Translator.utils.data_utils import sanitize_attribute
+# from HDF5Translator.utils.data_utils import sanitize_attribute
 
 
 def evaluate_type(name: str) -> Type:
@@ -29,10 +29,10 @@ def evaluate_type(name: str) -> Type:
 class TranslationElement:
     destination: str
     source: Optional[str] = None
-    data_type: Optional[str | Type] = None
+    data_type: Optional[str | Type] = None  # type: ignore
     source_units: Optional[str] = None
     destination_units: Optional[str] = None
-    transformation: Optional[Callable|str] = None
+    transformation: Optional[Callable | str] = None
     minimum_dimensionality: Optional[int] = None
     attributes: dict = field(factory=dict)
     default_value: Optional[str | int | float | bool] = None
@@ -51,18 +51,20 @@ class TranslationElement:
                 f"Could not convert {self.data_type=} to an actual type, setting to string, but it will probably not work the way you expect"
             )
             self.data_type = str
-        
-        # fix default value:
-        if self.default_value is not None:
-            self.default_value = sanitize_attribute(self.default_value, self.data_type)
-        
+
+        # # fix default value:
+        # if self.default_value is not None:
+        #     self.default_value = sanitize_attribute(self.default_value, self.data_type)
+
         # fix transformation:
         if self.transformation is not None:
             if isinstance(self.transformation, str):
                 try:
                     self.transformation = eval(self.transformation)
                 except Exception as e:
-                    logging.warning(f"Could not evaluate {self.transformation=} as a function. Setting to None.")
+                    logging.warning(
+                        f"Could not evaluate {self.transformation=} as a function with error {e}. Setting to None."
+                    )
 
 
 @define
