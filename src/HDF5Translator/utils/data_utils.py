@@ -16,9 +16,9 @@ This module contains utility functions for data manipulation, such as casting to
 """
 
 
-def apply_transformation(data, transformation):
-    """Apply the given transformation function to the data."""
-    return transformation(data)
+# def apply_transformation(data, transformation):
+#     """Apply the given transformation function to the data."""
+#     return transformation(data)
 
 
 def cast_to_datatype(data, element: TranslationElement):

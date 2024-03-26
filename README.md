@@ -51,13 +51,13 @@ translations:
 ```
 
 ## Tools
-
+<!-- 
 ### Template Creator
 Use the template creator tool to generate a template HDF5 file.
 
 ```bash
 python -m HDF5Translator.tools.template_creator template_file.h5
-```
+``` -->
 
 ### EDF to HDF5 Convertor
 This can used to convert the EDF into H5 format file.
@@ -75,7 +75,7 @@ This can be used to convert the excel files into yaml configuration file
 python -m HDF5Translator.tools.excel_translator.py -I SOURCE_FILE -O DESTINATION_FILE
 ```
 
-Example excel file is available in `src/test/testdata/UW_Xeuss`
+Example excel file is available in `example_configurations/UW_Xeuss`
 
 ## Components: 
 
@@ -84,17 +84,14 @@ Example excel file is available in `src/test/testdata/UW_Xeuss`
  - Data Models (translator_elements.py): Definitions of data classes for translation rules using attrs.
  - Configuration Reader (utils/config_reader.py): Functionality to read translation configurations from YAML files.
  - HDF5 Utilities (utils/hdf5_utils.py): Utility functions for common HDF5 operations, including dataset copying with unit conversion and dimensionality adjustment, and subtree copying.
- - Main Translator Logic (translator.py): The core logic for applying translation rules to copy data from a source HDF5 file to a destination HDF5 file, potentially using a template.
+ - Translator Logic (translator.py): The core logic for applying translation rules to copy data from a source HDF5 file to a destination HDF5 file, potentially using a template.
  - CLI Interface (__main__.py): Command-line interface setup for running translations based on user inputs.
 
 ### ToDo: 
 
- - Template Creation Logic (tools/template_creator.py): If your template creation logic involves more than just copying an existing file, you might need detailed functionality for generating template HDF5 files based on specific criteria or configurations.
- - Logging Configuration (__main__.py or a separate module): Detailed logging setup to capture and record runtime information, warnings, and errors to both stdout and a log file, enhancing debugging and monitoring capabilities.
  - Comprehensive Error Handling and Validation: Across all components, especially in file operations and data transformations, robust error handling and input validation ensure the tool behaves predictably and provides useful feedback on issues.
- - Integration and Workflow Management: Ensuring all components work together seamlessly, managing file paths, handling intermediate states, and coordinating the translation process from start to finish.
- - Unit Tests for Additional Components: Further testing code for the template creation logic, CLI interface, logging setup, and any other functionalities not covered by the initial unit tests. It’s crucial to have a comprehensive test suite covering various scenarios, edge cases, and error conditions.
- - Documentation (README.md): While we discussed the structure of a README file, the actual content detailing installation instructions, usage examples, configuration file formats, and descriptions of the functionalities and components is essential to guide users and developers.
+ - Unit Tests
+ - Documentation
  - Setup and Packaging Files (setup.py, requirements.txt): Scripts for packaging your project, making it installable via pip, and specifying dependencies that need to be installed.
  - Performance Optimization: Depending on the size of the HDF5 files you're working with, you might need to optimize the data reading, writing, and transformation operations to handle large datasets efficiently.
 
