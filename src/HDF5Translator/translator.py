@@ -76,7 +76,7 @@ def translate(
         for attributeLocation, attributeDict in attributes.items():
             ad = {k: sanitize_attribute(v) for k, v in attributeDict.items()}
             logging.info(f"adding {attributeLocation=}, {ad=}")
-            if not attributeLocation in h5_out:
+            if attributeLocation not in h5_out:
                 # create the destination as a group, because I know nothing of a dataset to be created..
                 h5_out.require_group(attributeLocation)
             h5_out[attributeLocation].attrs.update(ad)
