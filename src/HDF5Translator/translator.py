@@ -195,18 +195,14 @@ def process_translation_element(
         element.attributes = attributes  # now replace the source
 
     # add or update destination_units in attributes
-    print(f"before2 {element.attributes=}")
-
     if source_units is not None:
         element.attributes.update({"units": source_units})
     if element.destination_units is not None:
         element.attributes.update({"units": element.destination_units})
     # somehow we can still end up with None in the attributes, so let's clean that up
-    print(f"before {element.attributes=}")
     element.attributes = {
         k: sanitize_attribute(v) for k, v in element.attributes.items() if v is not None
     }
-    print(f"after {element.attributes=}")
 
     logging.debug(
         f"writing to {h5_out=}, in path {element.destination}, {data=}, using compression {element.compression} and attributes {element.attributes}"
