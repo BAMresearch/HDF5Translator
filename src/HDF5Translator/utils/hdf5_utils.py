@@ -4,6 +4,7 @@ import h5py
 import numpy as np
 
 from HDF5Translator.translator_elements import TranslationElement
+from HDF5Translator.utils.data_utils import sanitize_attribute
 
 doc = """
 This module contains utility functions for working with HDF5 files, such as copying trees, reading data, and writing data.
@@ -27,6 +28,8 @@ def get_data_and_attributes_from_source(
     if isinstance(dataLocation, h5py.Dataset):
         data = dataLocation[()]
         attributes = dict(dataLocation.attrs)
+        # sanitize attributes
+        attributes = {k: sanitize_attribute(v) for k, v in attributes.items()}
     else:
         logging.info(
             f"Path {element.source} does not exist in the input file, using default value {element.default_value} instead"
@@ -65,7 +68,10 @@ def write_dataset(
             compression=compression,
             exact=True,
         )
-    except (TypeError, ValueError):  # if it exists but is incompatible, delete it and create it again
+    except (
+        TypeError,
+        ValueError,
+    ):  # if it exists but is incompatible, delete it and create it again
         if path in hdf5_file:
             del hdf5_file[path]
         dset = hdf5_file.create_dataset(path, data=data, compression=compression)

@@ -158,6 +158,9 @@ def process_translation_element(
     # Read dataset and attributes from source if specified, otherwise go for default
     if h5_in and element.source:
         data, attributes = get_data_and_attributes_from_source(h5_in, element)
+        logging.debug(
+            f"got data {data=} and attributes {attributes=} from source {element.source}"
+        )
     else:
         data = element.default_value
         attributes = element.attributes if element.attributes else {}
@@ -169,7 +172,7 @@ def process_translation_element(
     if data is None:  # adjust_data has already complained about this
         return
 
-    # Optionally apply transformations / lambda functions ; not implemented yet
+    # Optionally apply transformations / lambda functions
     if element.transformation:
         data = apply_transformation(data, element.transformation)
 
@@ -184,13 +187,26 @@ def process_translation_element(
     # add dimensions if needed
     data = add_dimensions_if_needed(data, element)
 
+    # we need to update element.attributes to include source attributes, but element.attributes takes preference
+    if attributes:
+        attributes.update(
+            element.attributes
+        )  # element.attributes takes preference as you might have wanted to update some attributes through this mechanism
+        element.attributes = attributes  # now replace the source
+
     # add or update destination_units in attributes
+    print(f"before2 {element.attributes=}")
+
     if source_units is not None:
-        element.attributes.update({"units": element.source_units})
+        element.attributes.update({"units": source_units})
     if element.destination_units is not None:
         element.attributes.update({"units": element.destination_units})
     # somehow we can still end up with None in the attributes, so let's clean that up
-    element.attributes = {k: v for k, v in element.attributes.items() if v is not None}
+    print(f"before {element.attributes=}")
+    element.attributes = {
+        k: sanitize_attribute(v) for k, v in element.attributes.items() if v is not None
+    }
+    print(f"after {element.attributes=}")
 
     logging.debug(
         f"writing to {h5_out=}, in path {element.destination}, {data=}, using compression {element.compression} and attributes {element.attributes}"
@@ -207,5 +223,5 @@ def process_translation_element(
     # Write data to destination, with optional attributes, compression, etc.
     # dest_file.create_dataset(element.destination, data=data, compression=element.compression)
     # Add or update attributes as specified in the element
-    for attr_key, attr_value in element.attributes.items():
-        h5_out[element.destination].attrs[attr_key] = sanitize_attribute(attr_value)
+    # for attr_key, attr_value in element.attributes.items():
+    #     h5_out[element.destination].attrs[attr_key] = sanitize_attribute(attr_value)

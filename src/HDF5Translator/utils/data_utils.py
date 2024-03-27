@@ -112,7 +112,7 @@ def if_data_is_none(data, element):
 
 
 def sanitize_attribute(
-    value: str, default_type: Type = float
+    value: str | bytes | None, default_type: Type = float
 ) -> Union[str, float, np.ndarray]:
     """
     Tries to convert the attribute to:
@@ -120,6 +120,12 @@ def sanitize_attribute(
       - value
       - leave as string
     """
+    if value is None:
+        return None
+
+    if isinstance(value, bytes):
+        value = value.decode("utf-8")
+
     value = try_string_as_array(value)
     if isinstance(value, str):  # conversion did not succeed
         try:
@@ -147,6 +153,7 @@ def sanitize_data(data, element: TranslationElement):
     This applies default value from the translation element if data is none,
     casts to the datatype if specified in the translation element,
     """
+
     # apply default value if data is None
     data = if_data_is_none(data, element)
 
@@ -155,6 +162,10 @@ def sanitize_data(data, element: TranslationElement):
             f"Could not find valid data or default for {element.source=}, {element.destination=}, skipping..."
         )
         return None
+
+    # convert bytes to string:
+    if isinstance(data, bytes):
+        data = data.decode("utf-8")
 
     # check if it is an array by checking the first character, and try to interpret it as such
     data = try_string_as_array(data, data_type=element.data_type)
