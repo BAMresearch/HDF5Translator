@@ -76,6 +76,13 @@ def main(args=None):
 
     args = parser.parse_args(args)
 
+    if args.destination_file is None:
+        args.destination_file = Path(args.source_file).with_suffix(".yaml")
+
+    if args.destination_file.exists():
+        logging.warning(f"Overwriting destination file: {args.destination_file}")
+        args.destination_file.unlink()
+
     logging.info(".edf into .h5 translation started")
 
     edf_to_h5(args.source_file, args.destination_file)
