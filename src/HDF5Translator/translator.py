@@ -102,7 +102,6 @@ def translate(
                         f"source cannot be none for external link translations... skipping"
                     )
                     continue
-                logging.info(f"adding link {element=}")
                 with h5py.File(sf, "r") as h5_in:
                     process_link_element(h5_in, h5_out, element)
             else:
@@ -112,6 +111,21 @@ def translate(
 def process_link_element(
     h5_in: h5py.File | None, h5_out: h5py.File, element: LinkElement
 ):
+    """
+    Processes a single link element, applying the specified link to the HDF5 files.
+    """
+    logging.debug(f"processing link {element=}")
+
+    # escape clause
+    if element.source_path is None:
+        logging.warning(f"source cannot be none for link translations... skipping")
+        return
+    # delete destination if it already exists:
+    if element.destination_path in h5_out:
+        logging.warning(
+            f"destination {element.destination_path} already exists, deleting before creating this link"
+        )
+        del h5_out[element.destination_path]
 
     if element.internal_or_external == "internal":
         if element.soft_or_hard_link == "soft":
