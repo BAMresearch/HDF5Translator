@@ -175,8 +175,12 @@ def process_translation_element(
         element.attributes.update({"units": element.source_units})
     if element.destination_units is not None:
         element.attributes.update({"units": element.destination_units})
+    # somehow we can still end up with None in the attributes, so let's clean that up
+    element.attributes = {k: v for k, v in element.attributes.items() if v is not None}
 
-    logging.debug(f'writing to {h5_out=}, in path {element.destination}, {data=}, using compression {element.compression} and attributes {element.attributes}')
+    logging.debug(
+        f"writing to {h5_out=}, in path {element.destination}, {data=}, using compression {element.compression} and attributes {element.attributes}"
+    )
 
     write_dataset(
         h5_out,
