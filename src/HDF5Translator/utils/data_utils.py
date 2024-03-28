@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Callable, Type, Union
+from typing import Callable, List, Type, Union
 import numpy as np
 from pint import UnitRegistry
 
@@ -94,6 +94,14 @@ def select_source_units(element: TranslationElement, attributes: [dict | None] =
     else:
         return element.source_units
 
+def parse_translation_elements(config) -> List:
+    translations = []
+    for item in config.get("data_copy", []):
+        try: 
+            translations += [TranslationElement(**item)]
+        except TypeError as e:
+            logging.warning(f'Could not properly interpret the following entry as a TranslationElement (skipping...): {item=}. it raised the following error: {e}')
+    return translations
 
 def if_data_is_none(data, element):
 

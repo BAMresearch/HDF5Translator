@@ -16,6 +16,7 @@ from .utils.hdf5_utils import (
 from .utils.data_utils import (
     add_dimensions_if_needed,
     apply_transformation,
+    parse_translation_elements,
     perform_unit_conversion,
     sanitize_attribute,
     select_source_units,
@@ -48,7 +49,7 @@ def translate(
         if dest_file.exists():
             dest_file.unlink()
 
-    # Optionally use a template file as the basis for the destination
+    # Step 0: Optionally use a template file as the basis for the destination
     if template_file:
         # Logic to copy the template HDF5 file to the destination path
         shutil.copy(template_file, dest_file)
@@ -57,9 +58,10 @@ def translate(
     for tree in config.get("tree_copy", []):
         copy_hdf5_tree(source_file, dest_file, tree["source"], tree["destination"])
 
-    # Step 2: Apply specific dataset translations, transformations, datatype conversions, etc.
-    translations = [TranslationElement(**item) for item in config.get("data_copy", [])]
+    # Read the data_copy sheet, also add some guardrails in case entries are not properly specified:
+    translations = parse_translation_elements(config)
 
+    # Step 2: Apply specific dataset translations, transformations, datatype conversions, etc.
     with h5py.File(dest_file, "a") as h5_out:
         if source_file:
             with h5py.File(source_file, "r") as h5_in:

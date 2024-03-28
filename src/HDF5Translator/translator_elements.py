@@ -10,12 +10,15 @@ import builtins
 
 def evaluate_type(name: str) -> Type:
     # do some preformatting on the name to make it easier to match
+    if isinstance(name, type):
+        # nothing to do, already correct. 
+        return name 
+    
     name = name.lower().strip()
     if name == "string":
         name = "str"
 
     if isinstance(getattr(builtins, name, None), type):
-        # print(f"found {name=} in builtins")
         return getattr(builtins, name)
     # If it's not in builtins, it's probably a numpy type:
     elif isinstance(getattr(np, name, None), type):
