@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 
-def edf_to_h5(source_file_location, destination_file_location=None):
+def edf_to_h5(source_file_location: Path, destination_file_location: Path | None=None):
     """
     source_file_location: str
                           edf file location including the .edf extension
@@ -76,12 +76,11 @@ def main(args=None):
 
     args = parser.parse_args(args)
 
-    if args.destination_file is None:
-        args.destination_file = Path(args.source_file).with_suffix(".yaml")
 
-    if args.destination_file.exists():
-        logging.warning(f"Overwriting destination file: {args.destination_file}")
-        args.destination_file.unlink()
+    if args.destination_file:
+        if args.destination_file.exists():
+            logging.warning(f"Overwriting destination file: {args.destination_file}")
+            args.destination_file.unlink()
 
     logging.info(".edf into .h5 translation started")
 
