@@ -187,11 +187,9 @@ def process_translation_element(
     # add dimensions if needed
     data = add_dimensions_if_needed(data, element)
 
-    # we need to update element.attributes to include source attributes, but element.attributes takes preference
+    # we need to update element.attributes to include source attributes, but element.attributes takes preference as you might have wanted to update some attributes through this mechanism
     if attributes:
-        attributes.update(
-            element.attributes
-        )  # element.attributes takes preference as you might have wanted to update some attributes through this mechanism
+        attributes.update(element.attributes)
         element.attributes = attributes  # now replace the source
 
     # add or update destination_units in attributes
