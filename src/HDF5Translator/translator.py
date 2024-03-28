@@ -16,6 +16,7 @@ from .utils.hdf5_utils import (
 from .utils.data_utils import (
     add_dimensions_if_needed,
     apply_transformation,
+    fix_if_array_of_strings,
     parse_translation_elements,
     perform_unit_conversion,
     sanitize_attribute,
@@ -122,6 +123,7 @@ def process_link_element(
     if element.source_path is None:
         logging.warning(f"source cannot be none for link translations... skipping")
         return
+
     # delete destination if it already exists:
     if element.destination_path in h5_out:
         logging.warning(
@@ -130,6 +132,9 @@ def process_link_element(
         del h5_out[element.destination_path]
 
     if element.internal_or_external == "internal":
+        if not element.source_path in h5_out:
+            logging.warning(f'{element.source_path=} does not exist in {h5_out}, skipping...')
+            return
         if element.soft_or_hard_link == "soft":
             h5_out[element.destination_path] = h5py.SoftLink(element.source_path)
         if element.soft_or_hard_link == "hard":
@@ -139,6 +144,9 @@ def process_link_element(
         # I don't think soft links are possible for external things
         # if element.soft_or_hard_link == 'soft':
         #     h5_out[element.destination_path] = h5py.SoftLink(element.source_path)
+        if not element.source_path in h5_in:
+            logging.warning(f'{element.source_path=} does not exist in {h5_in}, skipping...')
+            return
         if element.soft_or_hard_link == "soft":
             logging.warning(
                 f"Soft external links are not supported, defaulting to hardlink; {element=} "
@@ -186,8 +194,12 @@ def process_translation_element(
         # Apply unit conversion
         data = perform_unit_conversion(data, source_units, element.destination_units)
 
-    # add dimensions if needed
-    data = add_dimensions_if_needed(data, element)
+    # add dimensions if needed, and if the data is not a string type
+    if not isinstance(data, str):
+        data = add_dimensions_if_needed(data, element)
+
+    # Anton Paar data can contain arrays of strings, which h5py has issues with. Concatenating that into a single string if needed. 
+    data = fix_if_array_of_strings(data)
 
     # we need to update element.attributes to include source attributes, but element.attributes takes preference as you might have wanted to update some attributes through this mechanism
     if attributes:

@@ -34,7 +34,7 @@ def cast_to_datatype(data, element: TranslationElement):
             f"attempting to cast value {data} into data_type: {element.data_type}"
         )
         if not isinstance(element.data_type, type):
-            print(
+            logging.warning(
                 "Type conversion must be supplied with a data type in element.data_type, something must have gone wrong. returning data as is without conversion"
             )
             return data
@@ -79,6 +79,13 @@ def add_dimensions_if_needed(data, element: TranslationElement):
 
     return data
 
+def fix_if_array_of_strings(data):
+    if not isinstance(data, np.ndarray):
+        return data # leave unchanged
+    if not data.dtype.kind in ['U', 'S']: # if not one of the string datatypes
+        return data # leave unchanged
+    else:
+        return ' '.join(data.tolist())
 
 def select_source_units(element: TranslationElement, attributes: [dict | None] = None):
     """
@@ -181,9 +188,11 @@ def sanitize_data(data, element: TranslationElement):
     # cast to datatype
     data = cast_to_datatype(data, element)
 
-    # fix string datatypes so h5py can handle them, otherwise it complains about not being able to store '<U4' type
-    if isinstance(data, str):
-        data = data.encode("utf-8")
+    # # fix string datatypes so h5py can handle them, otherwise it complains about not being able to store '<U4' type
+    # if isinstance(data, str):
+    #     print(f'{data=}') # strings can be "1"
+    #     data = data.encode("utf-8")
+    #     print(f'{data=}') # and now they are b"1".. ugh. 
 
     return data
 

@@ -55,10 +55,6 @@ class TranslationElement:
             )
             self.data_type = str
 
-        # # fix default value:
-        # if self.default_value is not None:
-        #     self.default_value = sanitize_attribute(self.default_value, self.data_type)
-
         # fix transformation:
         if self.transformation is not None:
             if isinstance(self.transformation, str):
