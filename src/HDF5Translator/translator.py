@@ -124,6 +124,17 @@ def process_link_element(
         logging.warning(f"source cannot be none for link translations... skipping")
         return
 
+    # check if source exists:
+    if element.internal_or_external == "internal":
+        if not element.source_path in h5_out:
+            logging.warning(f'{element.source_path=} does not exist in {h5_out}, skipping...')
+            return
+    else: 
+        if not element.source_path in h5_in:
+            logging.warning(f'{element.source_path=} does not exist in {h5_in}, skipping...')
+            return
+
+
     # delete destination if it already exists:
     if element.destination_path in h5_out:
         logging.warning(
@@ -132,21 +143,12 @@ def process_link_element(
         del h5_out[element.destination_path]
 
     if element.internal_or_external == "internal":
-        if not element.source_path in h5_out:
-            logging.warning(f'{element.source_path=} does not exist in {h5_out}, skipping...')
-            return
         if element.soft_or_hard_link == "soft":
             h5_out[element.destination_path] = h5py.SoftLink(element.source_path)
         if element.soft_or_hard_link == "hard":
             h5_out[element.destination_path] = h5_out[element.source_path]
 
     else:  # external
-        # I don't think soft links are possible for external things
-        # if element.soft_or_hard_link == 'soft':
-        #     h5_out[element.destination_path] = h5py.SoftLink(element.source_path)
-        if not element.source_path in h5_in:
-            logging.warning(f'{element.source_path=} does not exist in {h5_in}, skipping...')
-            return
         if element.soft_or_hard_link == "soft":
             logging.warning(
                 f"Soft external links are not supported, defaulting to hardlink; {element=} "
