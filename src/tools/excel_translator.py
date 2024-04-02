@@ -74,6 +74,9 @@ def excel_translator(excel_file_location, yaml_file_location):
                             ]
 
                             attrib_index += 1
+                            # escape the loop if the index is greater than the length of the dataframe
+                            if attrib_index >= len(data_copy_df):
+                                break
 
                         if len(attribute_dict.keys()) > 0:
                             data_dict_2["attributes"] = attribute_dict
@@ -116,6 +119,9 @@ def excel_translator(excel_file_location, yaml_file_location):
                             ]
 
                             attrib_index += 1
+                            # escape the loop if the index is greater than the length of the dataframe
+                            if attrib_index >= len(data_copy_df):
+                                break
 
                         if len(attribute_dict_3.keys()) > 0:
 
