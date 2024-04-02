@@ -1,10 +1,11 @@
 import json
 import logging
+from pathlib import Path
 from typing import Callable, List, Type, Union
 import numpy as np
 from pint import UnitRegistry
 
-from HDF5Translator.translator_elements import TranslationElement
+from HDF5Translator.translator_elements import LinkElement, TranslationElement
 
 ureg = UnitRegistry(auto_reduce_dimensions=True)
 ureg.define(r"eigerpixels = 0.075 mm = eigerpixel = eigerpx")
@@ -26,6 +27,20 @@ def apply_transformation(data, transformation: Callable):
         )
     return data
 
+def resolve_alternate_sourcefile(alternate_source_file:str | Path, dest_file:Path):
+    alternate_source_file = Path(alternate_source_file)
+    logging.info(f'trying to resolve {alternate_source_file=} relative to {dest_file.parent=}')
+    if any([c in alternate_source_file.as_posix() for c in ['?', '*', '[']]):
+        sourceFile = sorted(Path(dest_file.parent).glob(alternate_source_file.as_posix()))
+        if len(sourceFile) == 0:
+            logging.warning(f'a file matching {alternate_source_file=} could not be found relative to the output file. Skipping link')
+            return
+        logging.info(f'Source file globbed: {sourceFile[-1]}')
+        alternate_source_file = sourceFile[-1]
+    if not alternate_source_file.is_file():
+        logging.warning(f'{alternate_source_file=} is not a file. Skipping link')
+        return None
+    return alternate_source_file
 
 def cast_to_datatype(data, element: TranslationElement):
     """determines the datatype we need the data to be, recasting it if needed"""
@@ -109,6 +124,15 @@ def parse_translation_elements(config) -> List:
         except TypeError as e:
             logging.warning(f'Could not properly interpret the following entry as a TranslationElement (skipping...): {item=}. it raised the following error: {e}')
     return translations
+
+def parse_link_elements(config) -> List:
+    links = []
+    for item in config.get("link_list", []):
+        try: 
+            links += [LinkElement(**item)]
+        except TypeError as e:
+            logging.warning(f'Could not properly interpret the following entry as a LinkElement (skipping...): {item=}. it raised the following error: {e}')        
+    return links
 
 def if_data_is_none(data, element):
 

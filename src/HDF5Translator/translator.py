@@ -1,6 +1,8 @@
+import os
 from pathlib import Path
 from types import NoneType
 from typing import Union
+import hdf5plugin
 import h5py
 import yaml
 
@@ -17,8 +19,10 @@ from .utils.data_utils import (
     add_dimensions_if_needed,
     apply_transformation,
     fix_if_array_of_strings,
+    parse_link_elements,
     parse_translation_elements,
     perform_unit_conversion,
+    resolve_alternate_sourcefile,
     sanitize_attribute,
     select_source_units,
 )
@@ -92,19 +96,27 @@ def translate(
                 del h5_out[prune]
 
     # Step 5: Add links from the link_list
-    link_list = [LinkElement(**item) for item in config.get("link_list", [])]
+    link_list = parse_link_elements(config)
 
     with h5py.File(dest_file, "a") as h5_out:
         for element in link_list:
+
             if element.internal_or_external == "external":
                 sf = source_file
                 if element.alternate_source_file is not None:
-                    sf = element.alternate_source_file
+                    sf = resolve_alternate_sourcefile(
+                        element.alternate_source_file, dest_file
+                    )
                 if sf is None:
                     logging.warning(
                         f"source cannot be none for external link translations... skipping"
                     )
                     continue
+                if element.soft_or_hard_link == "hard":
+                    logging.info(
+                        "For external links, hard links are not allowed. enforcing soft links."
+                    )
+                    element.soft_or_hard_link = "soft"
                 with h5py.File(sf, "r") as h5_in:
                     process_link_element(h5_in, h5_out, element)
             else:
@@ -127,13 +139,16 @@ def process_link_element(
     # check if source exists:
     if element.internal_or_external == "internal":
         if not element.source_path in h5_out:
-            logging.warning(f'{element.source_path=} does not exist in {h5_out}, skipping...')
+            logging.warning(
+                f"{element.source_path=} does not exist in {h5_out}, skipping..."
+            )
             return
-    else: 
+    else:
         if not element.source_path in h5_in:
-            logging.warning(f'{element.source_path=} does not exist in {h5_in}, skipping...')
+            logging.warning(
+                f"{element.source_path=} does not exist in {h5_in}, skipping..."
+            )
             return
-
 
     # delete destination if it already exists:
     if element.destination_path in h5_out:
@@ -149,11 +164,23 @@ def process_link_element(
             h5_out[element.destination_path] = h5_out[element.source_path]
 
     else:  # external
-        if element.soft_or_hard_link == "soft":
+        if element.soft_or_hard_link == "hard":
             logging.warning(
-                f"Soft external links are not supported, defaulting to hardlink; {element=} "
+                f"Hard external links are not supported, defaulting to softlink; {element=} "
             )
-        h5_out[element.destination_path] = h5_in[element.source_path]
+        # get relative path with respect to output file:
+        # Todo: Python 3.12+ pathlib supports the "walk_up" boolean to replicate this. When
+        # requirements would go for 3.12, this should be enabled, and the os.path disabled:
+        # relpath = Path(h5_in.filename).relative_to(Path(h5_out.filename), walk_up = True)
+        relpath = Path(
+            os.path.relpath(Path(h5_in.filename), Path(h5_out.filename).parent)
+        )
+        logging.debug(
+            f"resolved relative path between {h5_in.filename=} and {h5_out.filename=} for external link: {relpath=}"
+        )
+        h5_out[element.destination_path] = h5py.ExternalLink(
+            relpath.as_posix(), element.source_path
+        )
 
 
 def process_translation_element(
@@ -200,7 +227,7 @@ def process_translation_element(
     if not isinstance(data, str):
         data = add_dimensions_if_needed(data, element)
 
-    # Anton Paar data can contain arrays of strings, which h5py has issues with. Concatenating that into a single string if needed. 
+    # Anton Paar data can contain arrays of strings, which h5py has issues with. Concatenating that into a single string if needed.
     data = fix_if_array_of_strings(data)
 
     # we need to update element.attributes to include source attributes, but element.attributes takes preference as you might have wanted to update some attributes through this mechanism
