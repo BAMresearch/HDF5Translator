@@ -12,8 +12,11 @@ dependencies = [
     "numpy",
     "pyyaml",
     "hdf5plugin",
+    "pandas",
+    "fabio",
     "pint",
-    "attrs"
+    "attrs",
+    "openpyxl"
     # Add other dependencies as needed
 ]
 
