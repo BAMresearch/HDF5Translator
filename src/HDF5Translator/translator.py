@@ -1,8 +1,7 @@
 import os
 from pathlib import Path
-from types import NoneType
 from typing import Union
-import hdf5plugin
+import hdf5plugin  # noqa: F401
 import h5py
 import yaml
 

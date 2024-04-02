@@ -23,24 +23,32 @@ def apply_transformation(data, transformation: Callable):
         data = transformation(data)
     except Exception as e:
         logging.warning(
-            f"Could not apply custom transformation {transformation} to {data=}, skipping transformation..."
+            f"Could not apply custom transformation {transformation} to {data=}, received exception {e}. skipping transformation..."
         )
     return data
 
-def resolve_alternate_sourcefile(alternate_source_file:str | Path, dest_file:Path):
+
+def resolve_alternate_sourcefile(alternate_source_file: str | Path, dest_file: Path):
     alternate_source_file = Path(alternate_source_file)
-    logging.info(f'trying to resolve {alternate_source_file=} relative to {dest_file.parent=}')
-    if any([c in alternate_source_file.as_posix() for c in ['?', '*', '[']]):
-        sourceFile = sorted(Path(dest_file.parent).glob(alternate_source_file.as_posix()))
+    logging.info(
+        f"trying to resolve {alternate_source_file=} relative to {dest_file.parent=}"
+    )
+    if any([c in alternate_source_file.as_posix() for c in ["?", "*", "["]]):
+        sourceFile = sorted(
+            Path(dest_file.parent).glob(alternate_source_file.as_posix())
+        )
         if len(sourceFile) == 0:
-            logging.warning(f'a file matching {alternate_source_file=} could not be found relative to the output file. Skipping link')
+            logging.warning(
+                f"a file matching {alternate_source_file=} could not be found relative to the output file. Skipping link"
+            )
             return
-        logging.info(f'Source file globbed: {sourceFile[-1]}')
+        logging.info(f"Source file globbed: {sourceFile[-1]}")
         alternate_source_file = sourceFile[-1]
     if not alternate_source_file.is_file():
-        logging.warning(f'{alternate_source_file=} is not a file. Skipping link')
+        logging.warning(f"{alternate_source_file=} is not a file. Skipping link")
         return None
     return alternate_source_file
+
 
 def cast_to_datatype(data, element: TranslationElement):
     """determines the datatype we need the data to be, recasting it if needed"""
@@ -94,13 +102,15 @@ def add_dimensions_if_needed(data, element: TranslationElement):
 
     return data
 
+
 def fix_if_array_of_strings(data):
     if not isinstance(data, np.ndarray):
-        return data # leave unchanged
-    if not data.dtype.kind in ['U', 'S']: # if not one of the string datatypes
-        return data # leave unchanged
+        return data  # leave unchanged
+    if not data.dtype.kind in ["U", "S"]:  # if not one of the string datatypes
+        return data  # leave unchanged
     else:
-        return ' '.join(data.tolist())
+        return " ".join(data.tolist())
+
 
 def select_source_units(element: TranslationElement, attributes: [dict | None] = None):
     """
@@ -116,23 +126,30 @@ def select_source_units(element: TranslationElement, attributes: [dict | None] =
     else:
         return element.source_units
 
+
 def parse_translation_elements(config) -> List:
     translations = []
     for item in config.get("data_copy", []):
-        try: 
+        try:
             translations += [TranslationElement(**item)]
         except TypeError as e:
-            logging.warning(f'Could not properly interpret the following entry as a TranslationElement (skipping...): {item=}. it raised the following error: {e}')
+            logging.warning(
+                f"Could not properly interpret the following entry as a TranslationElement (skipping...): {item=}. it raised the following error: {e}"
+            )
     return translations
+
 
 def parse_link_elements(config) -> List:
     links = []
     for item in config.get("link_list", []):
-        try: 
+        try:
             links += [LinkElement(**item)]
         except TypeError as e:
-            logging.warning(f'Could not properly interpret the following entry as a LinkElement (skipping...): {item=}. it raised the following error: {e}')        
+            logging.warning(
+                f"Could not properly interpret the following entry as a LinkElement (skipping...): {item=}. it raised the following error: {e}"
+            )
     return links
+
 
 def if_data_is_none(data, element):
 
@@ -216,7 +233,7 @@ def sanitize_data(data, element: TranslationElement):
     # if isinstance(data, str):
     #     print(f'{data=}') # strings can be "1"
     #     data = data.encode("utf-8")
-    #     print(f'{data=}') # and now they are b"1".. ugh. 
+    #     print(f'{data=}') # and now they are b"1".. ugh.
 
     return data
 
