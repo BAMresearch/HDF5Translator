@@ -11,12 +11,13 @@ dependencies = [
     "h5py",
     "numpy",
     "pyyaml",
-    "hdf5plugin",
-    "pandas",
-    "fabio",
+    "hdf5plugin", # extra compression libraries for the HDF5 translator
+    "pandas", # for the excel translator
+    "fabio", # for the EDF translator
     "pint",
     "attrs",
-    "openpyxl"
+    "openpyxl", # for the Excel translator
+    "scikit-image" # for the post-translation processing example
     # Add other dependencies as needed
 ]
 
