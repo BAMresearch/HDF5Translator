@@ -124,17 +124,18 @@ def copy_hdf5_tree(
             return False
 
         # This is the actual copying functionality. If we reach this point, we are copying a single element to a single destination.
-        if output_path in h5_out:
+        name = input_path.rsplit("/", maxsplit=1)[-1]
+        if (output_path + "/" + name) in h5_out:
             logging.warning(
-                f"Output path {output_path} already exists in {output_file}. Overwriting."
+                f"Output path {output_path + '/' + name} already exists in {output_file}. Overwriting."
             )
-            del h5_out[output_path]
+            del h5_out[output_path + "/" + name]
         output_group = h5_out.require_group(output_path)
         h5_in.copy(
             input_path,
             output_group,
             expand_external=True,
-            name=input_path.rsplit("/", maxsplit=1)[-1],
+            name=name,
         )
         logging.info(
             f"Copied {input_path} from {input_file} to {output_path} in {output_file}."
