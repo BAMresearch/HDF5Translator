@@ -1,8 +1,8 @@
 import os
 from pathlib import Path
 from typing import Union
-import hdf5plugin  # noqa: F401
 import h5py
+import hdf5plugin  # noqa: F401
 import yaml
 
 from HDF5Translator.utils.data_utils import sanitize_data
@@ -56,7 +56,7 @@ def translate(
     # Step 0: Optionally use a template file as the basis for the destination
     if template_file:
         # Logic to copy the template HDF5 file to the destination path
-        shutil.copy(template_file, dest_file)
+        shutil.copyfile(template_file, dest_file)
 
     # Step 1: Copy trees from source to destination
     for tree in config.get("tree_copy", []):
