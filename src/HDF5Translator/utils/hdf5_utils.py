@@ -82,6 +82,9 @@ def write_dataset(
 def copy_hdf5_tree(
     input_file: Path, output_file: Path, input_path: str, output_path: str
 ):
+    """
+    Copy a tree from one HDF5 file to another. This should behave like rsync when it comes to slashes etc.
+    """
 
     with h5py.File(input_file, "r") as h5_in, h5py.File(output_file, "a") as h5_out:
         if not isinstance(
@@ -89,13 +92,50 @@ def copy_hdf5_tree(
         ):
             logging.info(f"{input_path=} does not exist in {input_file=}")
             return False
+
+        # check if we need to copy the source element(s) to inside a group
+        copy_to_inside = False
+        if output_path[-1] == "/":
+            copy_to_inside = True
+            output_path = output_path[:-1]
+        # check if we need to copy multiple elements from inside the source
+        copy_from_inside = False
+        if input_path[-1] == "/":
+            copy_from_inside = True
+            input_path = input_path[:-1]
+
+        # deal with the case where we need to copy multiple elements from inside the source or to inside a group
+        if copy_to_inside and copy_from_inside:
+            for group in h5_in[input_path].keys():
+                copy_hdf5_tree(
+                    input_file,
+                    output_file,
+                    f"{input_path}/{group}",
+                    f"{output_path}/{group}",
+                )
+            return True
+        elif copy_to_inside:
+            copy_hdf5_tree(input_file, output_file, input_path, output_path)
+            return True
+        elif copy_from_inside:
+            logging.error(
+                f"Cannot copy multiple entries from inside a group to a single output destination. Did you forget a trailing slash in the destination? Skipping {input_path}"
+            )
+            return False
+
+        # This is the actual copying functionality. If we reach this point, we are copying a single element to a single destination.
         if output_path in h5_out:
             logging.warning(
                 f"Output path {output_path} already exists in {output_file}. Overwriting."
             )
             del h5_out[output_path]
         output_group = h5_out.require_group(output_path)
-        h5_in.copy(input_path, output_group, expand_external=True)
+        h5_in.copy(
+            input_path,
+            output_group,
+            expand_external=True,
+            name=input_path.rsplit("/", maxsplit=1)[-1],
+        )
         logging.info(
             f"Copied {input_path} from {input_file} to {output_path} in {output_file}."
         )
