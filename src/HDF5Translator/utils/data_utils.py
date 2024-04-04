@@ -238,6 +238,21 @@ def sanitize_data(data, element: TranslationElement):
     return data
 
 
+def getFromKeyVals(
+    item: str, keyvals: dict | None, default: str | int | float | None = None
+) -> str | int | float | None:
+    """
+    Helper function to get a value from the keyvals dictionary, with a default value if not present.
+    """
+    if keyvals is None:
+        return default
+    val = keyvals.get(item, default)
+    if val is None:
+        return default
+    val = sanitize_attribute(val)
+    return val
+
+
 def perform_unit_conversion(data, input_units, output_units):
     """
     Converts the data from input units to output units using pint.
