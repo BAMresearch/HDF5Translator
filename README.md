@@ -1,39 +1,44 @@
 # HDF5Translator
 
-HDF5Translator is a Python tool designed to translate and transform data between HDF5 files. It supports complex operations like unit conversion, dimensionality adjustments, and subtree copying, making it suitable for managing and manipulating scientific datasets.
+HDF5Translator is a Python framework for translating and transforming data between HDF5 files. It supports operations like unit conversion, dimensionality adjustments, and subtree copying, making it suitable for managing and manipulating a wide range of scientific datasets.
 
 ## Extending with other tools
 
 Don't forget that there are also some useful tools in the HDF5 package itself, including the ability to repack files, adjust datasets and compressions and copy particular items. They are available here: 
 [hdfgroup documentation on tools](https://docs.hdfgroup.org/hdf5/v1_14/_view_tools_edit.html)
 
-This HDF5Translator package is meant to extend this functionality with a tool to extensively reorder and reorganize HDF5 files. 
+This HDF5Translator package is meant to extend this functionality with a tool to extensively reorder and reorganize HDF5 files. A library of examples [is available here](https://dx.doi.org/10.5281/zenodo.10925972)
+
+An extensive blog post explaining the package [can be read here](https://lookingatnothing.com/)
 
 ## Features
 
   - Translation of HDF5 Structures: Translate data from one HDF5 file to another with flexible mapping configurations.
-  - Unit Conversion: Automatically convert data units using pint.
-  - Dimensionality Adjustment: Prepend dimensions to datasets to achieve a minimum dimensionality.
+  - Unit Conversion: Automatically convert data units between source and destination using pint.
+  - Dimensionality Adjustment: Prepend dimensions to datasets to ensure a minimum dimensionality.
   - Subtree Copying: Efficiently copy entire (sub-)trees within HDF5 files, preserving the structure and metadata.
   - Template-Based Translation: Initiate translations using an HDF5 template file for the destination structure.
 
 ## Installation
 
-Ensure you have Python 3.12 or later installed. Clone this repository and navigate into the project directory. Install the required dependencies:
+Ensure you have Python 3.10 or later installed (ideally 3.12). Clone this repository and navigate into the project directory. Install the required dependencies, as found in the pyproject.toml file. 
 
+Then install the package as a module from within the main HDF5Translator directory:
 ```bash
-pip install -r requirements.txt
+python3 -m pip install -e .
 ```
 
 Run the HDF5Translator from the command line, specifying the source file, destination file, and translation configuration.
 
 ```bash
-python -m HDF5Translator src_file.h5 dest_file.h5 translation_config.yaml
+python -m HDF5Translator -I src_file.h5 -O dest_file.h5 -C translation_config.yaml
 ```
 ### Optional Arguments
--t, --template_file: Specify a template HDF5 file for the destination.
--v, --verbose: Enable verbose output for debugging.
+-T, --template_file: Specify a template HDF5 file for the destination.
+-v, --verbose: Enable verbose (INFO) output for debugging.
+-vv, --very_verbose: Enable very verbose (DEBUG) output for debugging.
 -d, --delete: Delete the output file if it already exists.
+-l, --logging: output the log to a timestamped file
 
 ## Configuration
 
@@ -43,21 +48,20 @@ Translation configurations are defined in YAML files. Here's an example configur
 translations:
   - source: "/source_dataset"
     destination: "/destination_dataset"
-    datatype: "float32"
-    input_units: "meters"
-    output_units: "millimeters"
+    data_type: "float32"
+    source_units: "meters"
+    destination_units: "millimeters"
     minimum_dimensionality: 3
     compression: "gzip"
+    transformation: 'lambda x: np.squeeze(x, axis=0)'
 ```
 
 ## Tools
-<!-- 
-### Template Creator
-Use the template creator tool to generate a template HDF5 file.
 
-```bash
-python -m HDF5Translator.tools.template_creator template_file.h5
-``` -->
+Several tools are available to help you, check the use examples for details. These include: 
+  - edf_to_hdf5.py
+  - excel_translator.py
+  - a post-translation operation templates
 
 ### EDF to HDF5 Convertor
 This can used to convert the EDF into H5 format file.
@@ -84,16 +88,14 @@ Example excel file is available in `example_configurations/UW_Xeuss`
  - Data Models (translator_elements.py): Definitions of data classes for translation rules using attrs.
  - Configuration Reader (utils/config_reader.py): Functionality to read translation configurations from YAML files.
  - HDF5 Utilities (utils/hdf5_utils.py): Utility functions for common HDF5 operations, including dataset copying with unit conversion and dimensionality adjustment, and subtree copying.
- - Translator Logic (translator.py): The core logic for applying translation rules to copy data from a source HDF5 file to a destination HDF5 file, potentially using a template.
+ - data utiities (utils/data_utils.py): validation, typecasting etc. 
  - CLI Interface (__main__.py): Command-line interface setup for running translations based on user inputs.
 
 ### ToDo: 
 
- - Comprehensive Error Handling and Validation: Across all components, especially in file operations and data transformations, robust error handling and input validation ensure the tool behaves predictably and provides useful feedback on issues.
- - Unit Tests
- - Documentation
+ - Unit Tests: I started on these, but never took the time to write them out. The use examples are the tests for the moment. 
  - Setup and Packaging Files (setup.py, requirements.txt): Scripts for packaging your project, making it installable via pip, and specifying dependencies that need to be installed.
- - Performance Optimization: Depending on the size of the HDF5 files you're working with, you might need to optimize the data reading, writing, and transformation operations to handle large datasets efficiently.
+ - Performance Optimization: Depending on the size of the HDF5 files you're working with, you might need to optimize the data reading, writing, and transformation operations to handle large or multiple datasets efficiently.
 
 ### Contributing
 
