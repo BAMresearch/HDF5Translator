@@ -59,10 +59,10 @@ class TranslationElement:
         if self.transformation is not None:
             if isinstance(self.transformation, str):
                 try:
-                    self.transformation = eval(self.transformation)
+                    self.transformation = eval(self.transformation.strip())
                 except Exception as e:
                     logging.warning(
-                        f"Could not evaluate {self.transformation=} as a function with error {e}. Setting to None."
+                        f"Could not evaluate {self.transformation.strip()=} as a function with error {e}. Setting to None."
                     )
 
 
