@@ -112,7 +112,7 @@ def fix_if_array_of_strings(data):
         return " ".join(data.tolist())
 
 
-def select_source_units(element: TranslationElement, attributes: [dict | None] = None):
+def select_source_units(element: TranslationElement, attributes: dict | None = None):
     """
     This singular function dictates what takes precedence: the units specified in the source file, or the units specified in the translation configuration.
     If both are none, result remains none. If both are set, the source file units are chosen.
