@@ -32,9 +32,9 @@ import numpy as np
 from skimage.measure import regionprops
 from HDF5Translator.utils.data_utils import sanitize_attribute
 from HDF5Translator.utils.validators import (
-    file_check_extension,
-    file_exists_and_is_file,
+    validate_file
 )
+from HDF5Translator.utils.argparse_utils import KeyValueAction
 from HDF5Translator.utils.configure_logging import configure_logging
 from HDF5Translator.translator_elements import TranslationElement
 from HDF5Translator.translator import process_translation_element
@@ -268,36 +268,6 @@ def main(
 
 ### The code below probably does not need changing for use of the tremplate. ###
 
-
-def validate_file(file_path: str | Path) -> Path:
-    """
-    Validates that the file exists and has a valid extension.
-
-    Args:
-        file_path (str): Path to the file to validate.
-
-    Returns:
-        Path: Path object of the file.
-    """
-    file_path = Path(file_path)
-    file_exists_and_is_file(file_path)
-    file_check_extension(file_path, [".h5", ".hdf5", ".nxs", ".H5", ".HDF5", ".NXS"])
-    return file_path
-
-
-# for handling the optional keyval arguments for feeding additional parameters to your operation
-class KeyValueAction(argparse.Action):
-    """
-    Custom action for argparse to parse key-value pairs from the command line.
-    """
-
-    def __call__(self, parser, namespace, values, option_string=None):
-        keyvals = {}
-        for item in values:
-            # Split on the first equals sign
-            key, value = item.split("=", 1)
-            keyvals[key.strip()] = value.strip()
-        setattr(namespace, self.dest, keyvals)
 
 
 def setup_argparser():
