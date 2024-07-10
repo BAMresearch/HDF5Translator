@@ -9,7 +9,7 @@ performing calculations (e.g. for determining beam centers, transmission factors
 derived information), and writes the result back into the HDF5 structure of the original file.
 
 Usage:
-    python post_translation_processor.py --input measurement.h5 [--auxilary_files file2.h5 ...] [-v]
+    python post_translation_processor.py --input measurement.h5 [--auxiliary_files file2.h5 ...] [-v]
 
 Replace the calculation and file read/write logic according to your specific requirements.
 
@@ -47,14 +47,14 @@ performing calculations (e.g. for determining beam centers, transmission factors
 derived information), and writes the result back into the HDF5 structure of the original file.
 
 The example includes universal command-line arguments for specifying the input file,
-auxilary files, and verbosity level. It includes validators and a logging engine. There is also 
+auxiliary files, and verbosity level. It includes validators and a logging engine. There is also 
 the option of supplying key-value pairs for additional parameters to your operation.
 
 You can replace the calculation and file read/write logic according to your specific requirements.
 """
 
 
-def beamAnalysis(imageData: np.ndarray, ROI_SIZE: int) -> (tuple, float):
+def beam_analysis(imageData: np.ndarray, ROI_SIZE: int) -> (tuple, float):
     """
     Perform beam analysis on the given image data, returning the beam center and flux.
     """
@@ -95,12 +95,12 @@ def beamAnalysis(imageData: np.ndarray, ROI_SIZE: int) -> (tuple, float):
 # If you are adjusting the template for your needs, you probably only need to touch the main function:
 def main(
     filename: Path,
-    auxilary_files: list[Path] | None = None,
+    auxiliary_files: list[Path] | None = None,
     keyvals: dict | None = None,
 ):
     """
     We do a three-step process here:
-      1. read from the main HDF5 file (and optionally the auxilary files),
+      1. read from the main HDF5 file (and optionally the auxiliary files),
       2. perform an operation, in this example determining the beam center and flux,
       3. and write back to the file
 
@@ -129,7 +129,7 @@ def main(
         BeamDurationPath = (
             "/entry1/processing/direct_beam_profile/instrument/detector/frame_time"
         )
-        COMOutPath = "/entry1/processing/direct_beam_profile/beamAnalysis/centerOfMass"
+        COMOutPath = "/entry1/processing/direct_beam_profile/beam_analysis/centerOfMass"
         xOutPath = "/entry1/instrument/detector00/transformations/det_y"
         zOutPath = "/entry1/instrument/detector00/transformations/det_z"
         FluxOutPath = DirectFluxOutPath
@@ -138,7 +138,7 @@ def main(
         BeamDurationPath = (
             "/entry1/processing/sample_beam_profile/instrument/detector/frame_time"
         )
-        COMOutPath = "/entry1/processing/sample_beam_profile/beamAnalysis/centerOfMass"
+        COMOutPath = "/entry1/processing/sample_beam_profile/beam_analysis/centerOfMass"
         xOutPath = None  # no need to store these as we get the beam center from the direct beam
         zOutPath = None
         FluxOutPath = SampleFluxOutPath
@@ -157,7 +157,7 @@ def main(
 
     # Now you can do operations, such as determining a beam center and flux. For that, we need to
     # do a few steps...
-    center_of_mass, ITotal_region = beamAnalysis(imageData, ROI_SIZE)
+    center_of_mass, ITotal_region = beam_analysis(imageData, ROI_SIZE)
     logging.info(
         f"Beam center: {center_of_mass}, Flux: {ITotal_region / recordingTime} counts/s."
     )
@@ -174,7 +174,7 @@ def main(
             source_units="px",
             destination_units="px",
             attributes={
-                "note": "Determined by the beamanalysis post-translation processing script."
+                "note": "Determined by the beam_analysis post-translation processing script."
             },
         ),
         TranslationElement(
@@ -185,7 +185,7 @@ def main(
             destination_units="counts/s",
             minimum_dimensionality=1,
             attributes={
-                "note": "Determined by the beamanalysis post-translation processing script."
+                "note": "Determined by the beam_analysis post-translation processing script."
             },
         ),
     ]
@@ -203,7 +203,7 @@ def main(
                 source_units="eigerpixels",
                 destination_units="m",
                 attributes={
-                    "note": "Determined by the beamanalysis post-translation processing script.",
+                    "note": "Determined by the beam_analysis post-translation processing script.",
                     "depends_on": "./det_z",
                     "offset": "[0.0,0.0,0.0]",
                     "offset_units": "m",
@@ -220,7 +220,7 @@ def main(
                 source_units="eigerpixels",
                 destination_units="m",
                 attributes={
-                    "note": "Determined by the beamanalysis post-translation processing script.",
+                    "note": "Determined by the beam_analysis post-translation processing script.",
                     "depends_on": "./det_x",
                     "offset": "[0.0,0.0,0.0]",
                     "offset_units": "m",
@@ -253,7 +253,7 @@ def main(
                 default_value=transmission,
                 destination_units="",
                 attributes={
-                    "note": "Determined by the beamanalysis post-translation processing script."
+                    "note": "Determined by the beam_analysis post-translation processing script."
                 },
             )
         ]
@@ -289,7 +289,7 @@ def setup_argparser():
     )
     parser.add_argument(
         "-a",
-        "--auxilary_files",
+        "--auxiliary_files",
         type=validate_file,
         nargs="*",
         help="Optional additional HDF5 files needed for processing. (read-only)",
@@ -335,8 +335,8 @@ if __name__ == "__main__":
     )
 
     logging.info(f"Processing input file: {args.filename}")
-    if args.auxilary_files:
-        for auxilary_file in args.auxilary_files:
-            logging.info(f"using auxilary file: {auxilary_file}")
+    if args.auxiliary_files:
+        for auxiliary_file in args.auxiliary_files:
+            logging.info(f"using auxiliary file: {auxiliary_file}")
 
-    main(args.filename, args.auxilary_files, args.keyvals)
+    main(args.filename, args.auxiliary_files, args.keyvals)
