@@ -54,7 +54,7 @@ class newNewConcat(object):
 
         # use the first file as a template, increasing the size of the datasets to stack
 
-        self.createStructureFromFile(filenames[0], addShape = (len(filenames), 1))
+        self.createStructureFromFile(filenames[0], addShape = (len(filenames),)) # addShape = (len(filenames), 1)
 
         # add the datasets to the file.. this could perhaps be done in parallel
         for idx, filename in enumerate(filenames): 
@@ -83,6 +83,7 @@ class newNewConcat(object):
                         shape = (*addShape, *obj.shape),
                         maxshape = (*addShape, *obj.shape),
                         dtype = obj.dtype,
+                        compression="gzip",
                         # data = obj[()]
                     )
                 else:
