@@ -22,10 +22,9 @@ requires scikit-image
 """
 
 import argparse
-from ctypes import Union
 import logging
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, Union
 import hdf5plugin  # loaded BEFORE h5py
 import h5py
 import numpy as np
@@ -53,23 +52,33 @@ the option of supplying key-value pairs for additional parameters to your operat
 You can replace the calculation and file read/write logic according to your specific requirements.
 """
 
+def hdf5_get_image(filename: Path, h5imagepath: str = "entry/data/data") -> np.ndarray:
+    with h5py.File(filename, "r") as h5f:
+        image = h5f[h5imagepath][()]
+    return image
 
-def beam_analysis(imageData: np.ndarray, ROI_SIZE: int) -> (tuple, float):
+def reduce_extra_image_dimensions(image:np.ndarray, method=np.mean)->np.ndarray:
+    assert method in [np.mean, np.sum], "method must be either np.mean or np.sum function handles"
+    while image.ndim > 2:
+        image = method(image, axis=0)
+    return image
+
+def beam_analysis(imageData: np.ndarray, ROI_SIZE: int) -> Union[tuple, float]:
     """
     Perform beam analysis on the given image data, returning the beam center and flux.
     """
-    # Step 1: reducing the dimensionality of the imageData by averaging until we have a 2D array:
-    while imageData.ndim > 2:
-        imageData = np.mean(imageData, axis=0)
 
-    # Step 2: get rid of masked or pegged pixels on an Eiger detector
-    labeled_foreground = (np.logical_and(imageData >= 0, imageData <= 1e6)).astype(int)
+    # Step 1: get rid of masked or pegged pixels on an Eiger detector
+    labeled_foreground = (np.logical_and(imageData >= 0, imageData <= 1e9)).astype(int)
     maskedTwoDImage = imageData * labeled_foreground  # apply mask
     threshold_value = np.maximum(
         1, 0.0001 * maskedTwoDImage.max()
     )  # filters.threshold_otsu(maskedTwoDImage) # ignore zero pixels
     labeled_peak = (maskedTwoDImage > threshold_value).astype(int)  # label peak
     properties = regionprops(labeled_peak, imageData)  # calculate region properties
+    if len(properties) == 0:  # no beam found
+        return (0,0), 0
+    # continue normally if beam found
     center_of_mass = properties[0].centroid  # center of mass (unweighted by intensity)
     weighted_center_of_mass = properties[
         0
@@ -127,7 +136,7 @@ def main(
     if imageType == "direct_beam":
         BeamDatapath = "/entry1/processing/direct_beam_profile/data/data_000001"
         BeamDurationPath = (
-            "/entry1/processing/direct_beam_profile/instrument/detector/frame_time"
+            "/entry1/processing/direct_beam_profile/instrument/detector/count_time"
         )
         COMOutPath = "/entry1/processing/direct_beam_profile/beam_analysis/centerOfMass"
         xOutPath = "/entry1/instrument/detector00/transformations/det_y"
@@ -136,7 +145,7 @@ def main(
     elif imageType == "sample_beam":
         BeamDatapath = "/entry1/processing/sample_beam_profile/data/data_000001"
         BeamDurationPath = (
-            "/entry1/processing/sample_beam_profile/instrument/detector/frame_time"
+            "/entry1/processing/sample_beam_profile/instrument/detector/count_time"
         )
         COMOutPath = "/entry1/processing/sample_beam_profile/beam_analysis/centerOfMass"
         xOutPath = None  # no need to store these as we get the beam center from the direct beam
@@ -149,10 +158,14 @@ def main(
         )
         return
 
+    # print(f'{BeamDatapath=}, {BeamDurationPath=}, {COMOutPath=}, {xOutPath=}, {zOutPath=}, {FluxOutPath=}')
+
     # reading from the main HDF5 file
     with h5py.File(filename, "r") as h5_in:
         # Read necessary information (this is just a placeholder, adapt as needed)
         imageData = h5_in[BeamDatapath][()]
+        # mean because count_time is the frame time minus the readout time. 
+        imageData = reduce_extra_image_dimensions(imageData, method=np.mean)
         recordingTime = h5_in[BeamDurationPath][()]
 
     # Now you can do operations, such as determining a beam center and flux. For that, we need to
