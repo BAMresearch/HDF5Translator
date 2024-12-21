@@ -68,6 +68,7 @@ def write_dataset(
             compression=compression,
             exact=True,
         )
+        dset[...] = data
     except (
         TypeError,
         ValueError,
