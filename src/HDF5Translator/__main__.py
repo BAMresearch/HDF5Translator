@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 from .utils.configure_logging import configure_logging
 from .utils.validators import file_exists_and_is_file
-
+from .utils.argparse_utils import KeyValueAction
 
 def main(args=None):
     """Entry point for the HDF5Translator CLI."""
