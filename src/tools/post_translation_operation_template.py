@@ -9,11 +9,11 @@ performing calculations (e.g. for determining beam centers, transmission factors
 derived information), and writes the result back into the HDF5 structure of the original file.
 
 Usage:
-    python post_translation_processor.py --input measurement.h5 [--auxilary_files file2.h5 ...] [-v]
+    python post_translation_processor.py --input measurement.h5 [--auxiliary_files file2.h5 ...] [-v]
 
 Replace the calculation and file read/write logic according to your specific requirements.
 
-See the MOUSE_beamanalysis script for a working example of post-translation processing.
+See the MOUSE_beam_analysis script for a working example of post-translation processing.
 """
 
 import argparse
@@ -39,7 +39,7 @@ performing calculations (e.g. for determining beam centers, transmission factors
 derived information), and writes the result back into the HDF5 structure of the original file.
 
 The example includes universal command-line arguments for specifying the input file,
-auxilary files, and verbosity level. It includes validators and a logging engine. There is also 
+auxiliary files, and verbosity level. It includes validators and a logging engine. There is also 
 the option of supplying key-value pairs for additional parameters to your operation.
 
 You can replace the calculation and file read/write logic according to your specific requirements.
@@ -49,12 +49,12 @@ You can replace the calculation and file read/write logic according to your spec
 # If you are adjusting the template for your needs, you probably only need to touch the main function:
 def main(
     filename: Path,
-    auxilary_files: list[Path] | None = None,
+    auxiliary_files: list[Path] | None = None,
     keyvals: dict | None = None,
 ):
     """
     We do a three-step process here:
-      1. read from the main HDF5 file (and optionally the auxilary files),
+      1. read from the main HDF5 file (and optionally the auxiliary files),
       2. perform an operation, in this example determining the beam center and flux,
       3. and write back to the file
 
@@ -85,7 +85,7 @@ def main(
     TElements += [
         TranslationElement(
             # source is none since we're storing derived data
-            destination="/entry/sample/beam/beamAnalysis/centerOfMass",
+            destination="/entry/sample/beam/beam_analysis/centerOfMass",
             minimum_dimensionality=1,
             data_type="float32",
             default_value=center_of_mass,
@@ -95,7 +95,7 @@ def main(
         ),
         TranslationElement(
             # source is none since we're storing derived data
-            destination="/entry/sample/beam/beamAnalysis/flux",
+            destination="/entry/sample/beam/beam_analysis/flux",
             default_value=ITotal_region / recordingTime,
             data_type="float",
             source_units="counts/s",
@@ -135,7 +135,7 @@ def setup_argparser():
     )
     parser.add_argument(
         "-a",
-        "--auxilary_files",
+        "--auxiliary_files",
         type=validate_file,
         nargs="*",
         help="Optional additional HDF5 files needed for processing. (read-only)",
@@ -181,8 +181,8 @@ if __name__ == "__main__":
     )
 
     logging.info(f"Processing input file: {args.filename}")
-    if args.auxilary_files:
-        for auxilary_file in args.auxilary_files:
-            logging.info(f"using auxilary file: {auxilary_file}")
+    if args.auxiliary_files:
+        for auxiliary_file in args.auxiliary_files:
+            logging.info(f"using auxiliary file: {auxiliary_file}")
 
-    main(args.filename, args.auxilary_files, args.keyvals)
+    main(args.filename, args.auxiliary_files, args.keyvals)
