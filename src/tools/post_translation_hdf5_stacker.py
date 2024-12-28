@@ -23,13 +23,7 @@ from pathlib import Path
 from HDF5Translator.utils.validators import (
     validate_file, validate_file_delete_if_exists, validate_yaml_file
 )
-# from HDF5Translator.utils.argparse_utils import KeyValueAction
 from HDF5Translator.utils.configure_logging import configure_logging
-# from HDF5Translator.translator_elements import TranslationElement
-# from HDF5Translator.translator import process_translation_element
-# from HDF5Translator.utils.data_utils import getFromKeyVals
-
-# from nexusformat import nexus as nx
 
 class newNewConcat(object):
     """
@@ -66,15 +60,22 @@ class newNewConcat(object):
         # input = nx.nxload(ifname)
         with h5py.File(ifname, 'r') as h5in, h5py.File(self.outputFile, 'w') as h5out:
             # using h5py.visititems to walk the file
+
+            def printLinkItem(name, obj):
+                print(f'Link item found: {name= }, {obj= }')
+
             def addItem(name, obj):
+                if name == 'entry1/sample/beam/incident_wavelength':
+                    print(f'found the path: {name}')                
                 if isinstance(obj, h5py.Group):
                     print(f'adding group: {name}')
                     h5out.create_group(name)
                     # add attributes
-                    h5out.attrs.update(obj.attrs)
+                    h5out[name].attrs.update(obj.attrs)
                 elif isinstance(obj, h5py.Dataset) and not (name in self.stackItems):
                     print(f'plainly adding dataset: {name}')
                     h5in.copy(name, h5out, expand_external=True, name=name)
+                    h5out[name].attrs.update(obj.attrs)
                     # h5out.create_dataset(name, data=obj[()])
                 elif isinstance(obj, h5py.Dataset) and name in self.stackItems:
                     print(f'preparing by initializing the stacked dataset: {name} to shape {(*addShape, *obj.shape)}')
@@ -86,11 +87,12 @@ class newNewConcat(object):
                         compression="gzip",
                         # data = obj[()]
                     )
+                    h5out[name].attrs.update(obj.attrs)
                 else:
                     print(f'** uncaught object: {name}')
             
             h5in.visititems(addItem)
-
+            h5in.visititems_links(printLinkItem)
 
     def addDataToStack(self, ifname, addAtStackLocation):
         with h5py.File(ifname, 'r') as h5in, h5py.File(self.outputFile, 'a') as h5out:
