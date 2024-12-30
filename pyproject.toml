@@ -27,3 +27,7 @@ hdf5_copy_tree = "HDF5Translator.tools.hdf5_copy_tree:main"
 hdf5_add_attributes = "HDF5Translator.tools.hdf5_add_attributes:main"
 hdf5_stacker = "HDF5Translator.tools.hdf5_stacker:main"
 # Add other CLI tools as needed
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["example_configurations"]
