@@ -1,15 +1,15 @@
-import subprocess
+import argparse
 import os
 from pathlib import Path
+
 import attrs
-import argparse
-import excel_translator
+from excel_translator import excel_translator
+
 
 @attrs.define
 class Translator:
     input_file: Path = attrs.field()
     output_file: Path = attrs.field(default=None)
-    script_path: Path = attrs.field(default=Path('../../src/tools/excel_translator.py'))
 
     def __attrs_post_init__(self):
         # Set default output extension if not provided
@@ -24,17 +24,12 @@ class Translator:
         return self.input_file.stat().st_mtime > self.output_file.stat().st_mtime
 
     def translate(self):
-        """Perform the translation using the external script."""
+        """Perform the translation using the directly imported function."""
         try:
-            result = subprocess.run(
-                ['python', str(self.script_path), '-I', str(self.input_file)],
-                check=True,
-                capture_output=True,
-                text=True
-            )
-            print(f"Translation completed successfully:\n{result.stdout}")
-        except subprocess.CalledProcessError as e:
-            print(f"Error during translation:\n{e.stderr}")
+            excel_translator(self.input_file, self.output_file)
+            print(f"Translation completed successfully for: {self.input_file}")
+        except Exception as e:
+            print(f"Error during translation for {self.input_file}: {e}")
 
 def process_directory_or_file(target):
     target = Path(target)
@@ -49,7 +44,10 @@ def process_directory_or_file(target):
         yaml_file = target.with_suffix('.yaml')
         translator = Translator(input_file=target, output_file=yaml_file)
         if translator.is_update_needed():
+            print(f"Translating {target} to {yaml_file}")
             translator.translate()
+        else: 
+            print(f"No translation needed for {target}, {yaml_file} is up to date.")
     else:
         print(f"{target} is neither a valid file nor a directory.")
 
