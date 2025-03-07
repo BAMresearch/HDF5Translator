@@ -50,6 +50,12 @@ def write_dataset(
     """
     Write data to the specified path, creating groups as necessary, and setting attributes.
     """
+    # calculate chunking: if the dataset size is ndim >1 use a chunk size of the last two dimensions:
+    if isinstance(data, np.ndarray):
+        if len(data.shape) > 1:
+            chunking_shape = (1,) * (len(data.shape) - 2) + data.shape[-2:]
+        else:
+            chunking_shape = data.shape
 
     hdf5_file.require_group(path.rsplit("/", maxsplit=1)[0])
     # check if the dataset exists and is compatible:
@@ -66,6 +72,7 @@ def write_dataset(
             dtype=dtype,
             data=data,
             compression=compression,
+            chunks=chunking_shape,
             exact=True,
         )
         dset[...] = data
