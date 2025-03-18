@@ -82,7 +82,7 @@ def write_dataset(
     ):  # if it exists but is incompatible, delete it and create it again
         if path in hdf5_file:
             del hdf5_file[path]
-        dset = hdf5_file.create_dataset(path, data=data, compression=compression)
+        dset = hdf5_file.create_dataset(path, data=data, compression=compression, chunks=chunking_shape)
     # update attributes.
     dset.attrs.update(attributes)
 
