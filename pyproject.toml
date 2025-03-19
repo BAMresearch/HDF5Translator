@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "HDF5Translator"
-version = "0.1.2"
+version = "0.1.3"
 description = "A tool for translating and manipulating HDF5 file structures."
 authors = [{name = "Brian R. Pauw"}]
 dependencies = [
