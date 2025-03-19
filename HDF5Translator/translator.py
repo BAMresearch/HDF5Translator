@@ -67,14 +67,32 @@ def translate(
 
     # Step 2: Apply specific dataset translations, transformations, datatype conversions, etc.
     with h5py.File(dest_file, "a") as h5_out:
-        if source_file:
-            with h5py.File(source_file, "r") as h5_in:
-                for element in translations:
+        for element in translations:
+            if source_file:
+                sf = source_file
+                if element.alternate_source_file is not None:
+                    sf = resolve_alternate_sourcefile(
+                        element.alternate_source_file, dest_file
+                    )
+                if (sf is None) or (not Path(sf).is_file()):
+                    logging.warning(
+                        f"could not resolve alternate source file for {element=}, skipping"
+                    )
+                    continue
+                with h5py.File(sf, "r") as h5_in:
                     logging.info(f"Translating {element=} ")
                     process_translation_element(h5_in, h5_out, element)
-        else:
-            for element in translations:
+            else:
                 process_translation_element(None, h5_out, element)
+
+        # if source_file:
+        #     with h5py.File(source_file, "r") as h5_in:
+        #         for element in translations:
+        #             logging.info(f"Translating {element=} ")
+        #             process_translation_element(h5_in, h5_out, element)
+        # else:
+        #     for element in translations:
+        #         process_translation_element(None, h5_out, element)
 
     # Step 3: Update or add attributes as specified in the configuration
     attributes = config.get("attributes", [])

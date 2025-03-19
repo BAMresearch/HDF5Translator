@@ -32,6 +32,7 @@ def evaluate_type(name: str) -> Type:
 class TranslationElement:
     destination: str
     source: Optional[str] = None
+    alternate_source_file: Optional[Path] = None
     data_type: Optional[str | Type] = None  # type: ignore
     source_units: Optional[str] = None
     destination_units: Optional[str] = None
