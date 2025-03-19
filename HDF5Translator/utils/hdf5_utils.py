@@ -51,6 +51,7 @@ def write_dataset(
     Write data to the specified path, creating groups as necessary, and setting attributes.
     """
     # calculate chunking: if the dataset size is ndim >1 use a chunk size of the last two dimensions:
+    chunking_shape = None
     if isinstance(data, np.ndarray):
         if len(data.shape) > 1:
             chunking_shape = (1,) * (len(data.shape) - 2) + data.shape[-2:]
