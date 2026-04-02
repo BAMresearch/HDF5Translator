@@ -21,7 +21,7 @@ An extensive blog post explaining the package [can be read here](https://looking
 
 ## Installation
 
-Ensure you have Python 3.10 or later installed (ideally 3.12). Clone this repository and navigate into the project directory. Install the required dependencies, as found in the pyproject.toml file. 
+Ensure you have Python 3.11 or later installed (ideally 3.12). Clone this repository and navigate into the project directory. Install the required dependencies, as found in the pyproject.toml file. 
 
 Then install the package as a module from within the main HDF5Translator directory:
 ```bash
@@ -39,6 +39,36 @@ python -m HDF5Translator -I src_file.h5 -O dest_file.h5 -C translation_config.ya
 -vv, --very_verbose: Enable very verbose (DEBUG) output for debugging.
 -d, --delete: Delete the output file if it already exists.
 -l, --logging: output the log to a timestamped file
+
+## Code Quality and Formatting
+
+The project uses Ruff for both linting and formatting, with a maximum line width of 120 and Python 3.11 target rules.
+
+Install and activate pre-commit hooks:
+```bash
+python -m pip install pre-commit
+pre-commit install
+```
+
+Run checks manually:
+```bash
+python -m ruff check HDF5Translator/translator.py HDF5Translator/utils/data_utils.py HDF5Translator/utils/hdf5_utils.py tests/test_*.py
+python -m ruff format --check HDF5Translator/translator.py HDF5Translator/utils/data_utils.py HDF5Translator/utils/hdf5_utils.py tests/test_*.py
+```
+
+## Testing and Performance Checks
+
+Run unit and integration tests:
+```bash
+python -m pytest -m "not perf"
+```
+
+Run performance checks (soft gate):
+```bash
+python -m pytest -m perf
+```
+
+Design and performance implementation notes are documented in [doc/translator_design.md](doc/translator_design.md).
 
 ## Configuration
 
@@ -93,9 +123,9 @@ Example excel file is available in `example_configurations/UW_Xeuss`
 
 ### ToDo: 
 
- - Unit Tests: I started on these, but never took the time to write them out. The use examples are the tests for the moment. 
+ - Expand synthetic and end-to-end test coverage for additional facility-specific configuration variants.
  - Setup and Packaging Files (setup.py, requirements.txt): Scripts for packaging your project, making it installable via pip, and specifying dependencies that need to be installed.
- - Performance Optimization: Depending on the size of the HDF5 files you're working with, you might need to optimize the data reading, writing, and transformation operations to handle large or multiple datasets efficiently.
+ - Continue tuning performance for facility-specific workloads where detector datasets are very large.
 
 ### Contributing
 

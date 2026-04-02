@@ -1,19 +1,19 @@
+"""Core HDF5 translation workflow."""
+
+from __future__ import annotations
+
+import logging
 import os
+import shutil
+from contextlib import ExitStack
 from pathlib import Path
-from typing import Union
+from typing import Any
+
 import h5py
 import hdf5plugin  # noqa: F401
 import yaml
 
-from HDF5Translator.utils.data_utils import sanitize_data
-
-# from HDF5Translator.utils.config_reader import read_translation_config
 from .translator_elements import LinkElement, TranslationElement
-from .utils.hdf5_utils import (
-    copy_hdf5_tree,
-    get_data_and_attributes_from_source,
-    write_dataset,
-)
 from .utils.data_utils import (
     add_dimensions_if_needed,
     apply_transformation,
@@ -23,238 +23,257 @@ from .utils.data_utils import (
     perform_unit_conversion,
     resolve_alternate_sourcefile,
     sanitize_attribute,
+    sanitize_data,
     select_source_units,
+    summarize_data,
 )
-import logging
-import shutil
+from .utils.hdf5_utils import (
+    SourceDataCache,
+    copy_hdf5_tree,
+    get_data_and_attributes_from_source,
+    write_dataset,
+)
+
+
+def _source_data_cache_enabled() -> bool:
+    """Return whether the optional source dataset cache is enabled for this run."""
+    value = os.getenv("HDF5TRANSLATOR_ENABLE_SOURCE_CACHE", "0").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def _resolve_source_path_for_element(
+    source_file: Path | None,
+    alternate_source_file: str | Path | None,
+    dest_file: Path,
+    alternate_source_cache: dict[str, Path | None],
+) -> Path | None:
+    """Resolve the source file to use for one element while caching glob resolutions."""
+    if alternate_source_file is None:
+        return source_file
+
+    normalized_alternate_source = Path(alternate_source_file)
+    cache_key = normalized_alternate_source.as_posix()
+    if cache_key not in alternate_source_cache:
+        alternate_source_cache[cache_key] = resolve_alternate_sourcefile(normalized_alternate_source, dest_file)
+    return alternate_source_cache[cache_key]
+
+
+def _get_open_source_file(
+    source_path: Path,
+    open_source_files: dict[Path, h5py.File],
+    stack: ExitStack,
+) -> h5py.File:
+    """Open source files lazily and reuse file handles within a translation phase."""
+    normalized_path = Path(source_path)
+    if normalized_path not in open_source_files:
+        open_source_files[normalized_path] = stack.enter_context(h5py.File(normalized_path, "r"))
+    return open_source_files[normalized_path]
 
 
 def translate(
-    source_file: Path,
+    source_file: Path | None,
     dest_file: Path,
     config_file: Path,
-    template_file: Union[Path, None] = None,
+    template_file: Path | None = None,
     overwrite: bool = False,
-):
-    """Performs the translation of an HDF5 file based on the given configuration.
+) -> None:
+    """Translate HDF5 file content according to a YAML configuration."""
+    with config_file.open("r", encoding="utf-8") as file:
+        config = yaml.safe_load(file) or {}
 
-    Args:
-        source_path (str): Path to the source HDF5 file.
-        dest_path (str): Path to the destination HDF5 file.
-        translations (List[TranslationElement]): List of translation elements specifying the translation rules.
-        template_path (str, optional): Path to a template HDF5 file to use as the base for the destination. Defaults to None.
-        overwrite (bool, optional): Whether to overwrite the destination file if it exists. Defaults to False.
-    """
-    with open(config_file, "r") as file:
-        config = yaml.safe_load(file)
+    if overwrite and dest_file.exists():
+        logging.warning("Overwriting destination file: %s", dest_file)
+        dest_file.unlink()
 
-    if overwrite:
-        logging.warning(f"Overwriting destination file: {dest_file}")
-        if dest_file.exists():
-            dest_file.unlink()
-
-    # Step 0: Optionally use a template file as the basis for the destination
-    if template_file:
-        # Logic to copy the template HDF5 file to the destination path
+    if template_file is not None:
         shutil.copyfile(template_file, dest_file)
 
-    # Step 1: Copy trees from source to destination
-    for tree in config.get("tree_copy", []):
-        copy_hdf5_tree(source_file, dest_file, tree["source"], tree["destination"])
+    if source_file is not None:
+        for tree in config.get("tree_copy", []):
+            copy_hdf5_tree(source_file, dest_file, tree["source"], tree["destination"])
 
-    # Read the data_copy sheet, also add some guardrails in case entries are not properly specified:
     translations = parse_translation_elements(config)
+    alternate_source_cache: dict[str, Path | None] = {}
+    source_data_cache: SourceDataCache | None = {} if _source_data_cache_enabled() else None
 
-    # Step 2: Apply specific dataset translations, transformations, datatype conversions, etc.
-    with h5py.File(dest_file, "a") as h5_out:
+    with h5py.File(dest_file, "a") as h5_out, ExitStack() as stack:
+        open_source_files: dict[Path, h5py.File] = {}
         for element in translations:
-            if source_file:
-                sf = source_file
-                if element.alternate_source_file is not None:
-                    sf = resolve_alternate_sourcefile(
-                        element.alternate_source_file, dest_file
-                    )
-                if (sf is None) or (not Path(sf).is_file()):
-                    logging.warning(
-                        f"could not resolve alternate source file for {element=}, skipping"
-                    )
-                    continue
-                with h5py.File(sf, "r") as h5_in:
-                    logging.info(f"Translating {element=} ")
-                    process_translation_element(h5_in, h5_out, element)
-            else:
-                process_translation_element(None, h5_out, element)
+            if source_file is None:
+                process_translation_element(None, h5_out, element, source_data_cache=source_data_cache)
+                continue
 
-    # Step 3: Update or add attributes as specified in the configuration
-    attributes = config.get("attributes", [])
+            source_path = _resolve_source_path_for_element(
+                source_file,
+                element.alternate_source_file,
+                dest_file,
+                alternate_source_cache,
+            )
+            if source_path is None or not source_path.is_file():
+                logging.warning(
+                    "Could not resolve source file for destination=%s alternate_source=%s",
+                    element.destination,
+                    element.alternate_source_file,
+                )
+                continue
+
+            h5_in = _get_open_source_file(source_path, open_source_files, stack)
+            logging.info(
+                "Translating destination=%s from source=%s using file=%s",
+                element.destination,
+                element.source,
+                source_path,
+            )
+            process_translation_element(h5_in, h5_out, element, source_data_cache=source_data_cache)
+
+    attributes = config.get("attributes", {})
     with h5py.File(dest_file, "a") as h5_out:
-        for attributeLocation, attributeDict in attributes.items():
-            ad = {k: sanitize_attribute(v) for k, v in attributeDict.items()}
-            logging.info(f"adding {attributeLocation=}, {ad=}")
-            if attributeLocation not in h5_out:
-                # create the destination as a group, because I know nothing of a dataset to be created..
-                h5_out.require_group(attributeLocation)
-            h5_out[attributeLocation].attrs.update(ad)
+        for attribute_location, attribute_dict in attributes.items():
+            sanitized_attributes = {key: sanitize_attribute(value) for key, value in attribute_dict.items()}
+            logging.info("Updating attributes at %s (%d attributes)", attribute_location, len(sanitized_attributes))
+            if attribute_location not in h5_out:
+                h5_out.require_group(attribute_location)
+            h5_out[attribute_location].attrs.update(sanitized_attributes)
 
-    # Step 4: remove (prune) any datasets or groups as specified in the configuration
     with h5py.File(dest_file, "r+") as h5_out:
-        for prune in config.get("prune_list", []):
-            logging.info(f"pruning {prune}")
-            if prune in h5_out:
-                del h5_out[prune]
+        for prune_path in config.get("prune_list", []):
+            logging.info("Pruning path %s", prune_path)
+            if prune_path in h5_out:
+                del h5_out[prune_path]
 
-    # Step 5: Add links from the link_list
     link_list = parse_link_elements(config)
-
-    with h5py.File(dest_file, "a") as h5_out:
+    with h5py.File(dest_file, "a") as h5_out, ExitStack() as stack:
+        open_source_files: dict[Path, h5py.File] = {}
         for element in link_list:
-
-            if element.internal_or_external == "external":
-                sf = source_file
-                if element.alternate_source_file is not None:
-                    sf = resolve_alternate_sourcefile(
-                        element.alternate_source_file, dest_file
-                    )
-                if sf is None:
-                    logging.warning(
-                        f"source cannot be none for external link translations... skipping"
-                    )
-                    continue
-                if element.soft_or_hard_link == "hard":
-                    logging.info(
-                        "For external links, hard links are not allowed. enforcing soft links."
-                    )
-                    element.soft_or_hard_link = "soft"
-                with h5py.File(sf, "r") as h5_in:
-                    process_link_element(h5_in, h5_out, element)
-            else:
+            if element.internal_or_external == "internal":
                 process_link_element(None, h5_out, element)
+                continue
+
+            source_path = _resolve_source_path_for_element(
+                source_file,
+                element.alternate_source_file,
+                dest_file,
+                alternate_source_cache,
+            )
+            if source_path is None:
+                logging.warning("Source file cannot be None for external link destination=%s", element.destination_path)
+                continue
+
+            if element.soft_or_hard_link == "hard":
+                logging.info(
+                    "External hard links are not supported. Switching to soft link for %s", element.destination_path
+                )
+                element.soft_or_hard_link = "soft"
+
+            h5_in = _get_open_source_file(source_path, open_source_files, stack)
+            process_link_element(h5_in, h5_out, element)
 
 
-def process_link_element(
-    h5_in: h5py.File | None, h5_out: h5py.File, element: LinkElement
-):
-    """
-    Processes a single link element, applying the specified link to the HDF5 files.
-    """
-    logging.debug(f"processing link {element=}")
+def process_link_element(h5_in: h5py.File | None, h5_out: h5py.File, element: LinkElement) -> None:
+    """Create one internal or external HDF5 link from a link element definition."""
+    logging.debug(
+        "Processing link source_path=%s destination_path=%s mode=%s/%s",
+        element.source_path,
+        element.destination_path,
+        element.internal_or_external,
+        element.soft_or_hard_link,
+    )
 
-    # escape clause
     if element.source_path is None:
-        logging.warning(f"source cannot be none for link translations... skipping")
+        logging.warning("source_path cannot be None for link destination=%s", element.destination_path)
         return
 
-    # check if source exists:
     if element.internal_or_external == "internal":
-        if not element.source_path in h5_out:
-            logging.warning(
-                f"{element.source_path=} does not exist in {h5_out}, skipping..."
-            )
+        if element.source_path not in h5_out:
+            logging.warning("Internal source path %s does not exist. Skipping link.", element.source_path)
             return
     else:
-        if not element.source_path in h5_in:
-            logging.warning(
-                f"{element.source_path=} does not exist in {h5_in}, skipping..."
-            )
+        if h5_in is None:
+            logging.warning("External link requires an open source file. Skipping %s", element.destination_path)
+            return
+        if element.source_path not in h5_in:
+            logging.warning("External source path %s does not exist. Skipping link.", element.source_path)
             return
 
-    # delete destination if it already exists:
     if element.destination_path in h5_out:
-        logging.warning(
-            f"destination {element.destination_path} already exists, deleting before creating this link"
-        )
+        logging.warning("Destination %s exists and will be replaced", element.destination_path)
         del h5_out[element.destination_path]
 
     if element.internal_or_external == "internal":
         if element.soft_or_hard_link == "soft":
             h5_out[element.destination_path] = h5py.SoftLink(element.source_path)
-        if element.soft_or_hard_link == "hard":
+        else:
             h5_out[element.destination_path] = h5_out[element.source_path]
+        return
 
-    else:  # external
-        if element.soft_or_hard_link == "hard":
-            logging.warning(
-                f"Hard external links are not supported, defaulting to softlink; {element=} "
-            )
-        # get relative path with respect to output file:
-        # Todo: Python 3.12+ pathlib supports the "walk_up" boolean to replicate this. When
-        # requirements would go for 3.12, this should be enabled, and the os.path disabled:
-        # relpath = Path(h5_in.filename).relative_to(Path(h5_out.filename), walk_up = True)
-        relpath = Path(
-            os.path.relpath(Path(h5_in.filename), Path(h5_out.filename).parent)
-        )
-        logging.debug(
-            f"resolved relative path between {h5_in.filename=} and {h5_out.filename=} for external link: {relpath=}"
-        )
-        h5_out[element.destination_path] = h5py.ExternalLink(
-            relpath.as_posix(), element.source_path
-        )
+    assert h5_in is not None
+    relative_path = Path(os.path.relpath(Path(h5_in.filename), Path(h5_out.filename).parent))
+    logging.debug(
+        "Resolved external link file path %s for destination %s",
+        relative_path,
+        element.destination_path,
+    )
+    h5_out[element.destination_path] = h5py.ExternalLink(relative_path.as_posix(), element.source_path)
 
 
 def process_translation_element(
-    h5_in: h5py.File | None, h5_out: h5py.File, element: TranslationElement
-):
-    """Processes a single translation element, applying the specified translation to the HDF5 files.
-
-    Args:
-        source_file: The source HDF5 file object.
-        dest_file: The destination HDF5 file object.
-        element (TranslationElement): The translation element specifying the translation rule.
-    """
-
-    # Read dataset and attributes from source if specified, otherwise go for default
-    if h5_in and element.source:
-        data, attributes = get_data_and_attributes_from_source(h5_in, element)
+    h5_in: h5py.File | None,
+    h5_out: h5py.File,
+    element: TranslationElement,
+    source_data_cache: SourceDataCache | None = None,
+) -> None:
+    """Process and write one translation element into the output HDF5 file."""
+    if h5_in is not None and element.source is not None:
+        data, source_attributes = get_data_and_attributes_from_source(
+            h5_in,
+            element,
+            source_data_cache=source_data_cache,
+        )
         logging.debug(
-            f"got data {data=} and attributes {attributes=} from source {element.source}"
+            "Loaded source %s for destination %s: %s with %d attributes",
+            element.source,
+            element.destination,
+            summarize_data(data),
+            len(source_attributes),
         )
     else:
         data = element.default_value
-        attributes = element.attributes if element.attributes else {}
+        source_attributes: dict[str, Any] = {}
 
-    # adjust the data for the destination, applying type
     data = sanitize_data(data, element)
-
-    # escape clause
-    if data is None:  # adjust_data has already complained about this
+    if data is None:
         return
 
-    # Optionally apply transformations / lambda functions
-    if element.transformation:
+    if element.transformation is not None:
         data = apply_transformation(data, element.transformation)
 
-    # get the correct source units to work with:
-    source_units = select_source_units(element, attributes)
-
-    # apply units transformation if needed:
+    source_units = select_source_units(element, source_attributes)
     if source_units and element.destination_units:
-        # Apply unit conversion
         data = perform_unit_conversion(data, source_units, element.destination_units)
 
-    # add dimensions if needed, and if the data is not a string type
     if not isinstance(data, str):
         data = add_dimensions_if_needed(data, element)
 
-    # Anton Paar data can contain arrays of strings, which h5py has issues with. Concatenating that into a single string if needed.
     data = fix_if_array_of_strings(data)
 
-    # we need to update element.attributes to include source attributes, but element.attributes takes preference as you might have wanted to update some attributes through this mechanism
-    if attributes:
-        attributes.update(element.attributes)
-        element.attributes = attributes  # now replace the source
+    merged_attributes: dict[str, Any] = dict(source_attributes)
+    merged_attributes.update(element.attributes)
 
-    # add or update destination_units in attributes
     if source_units is not None:
-        element.attributes.update({"units": source_units})
+        merged_attributes["units"] = source_units
     if element.destination_units is not None:
-        element.attributes.update({"units": element.destination_units})
-    # somehow we can still end up with None in the attributes, so let's clean that up
-    element.attributes = {
-        k: sanitize_attribute(v) for k, v in element.attributes.items() if v is not None
+        merged_attributes["units"] = element.destination_units
+
+    sanitized_attributes = {
+        key: sanitize_attribute(value) for key, value in merged_attributes.items() if value is not None
     }
 
     logging.debug(
-        f"writing to {h5_out=}, in path {element.destination}, {data=}, using compression {element.compression} and attributes {element.attributes}"
+        "Writing destination %s with %s compression=%s attrs=%d",
+        element.destination,
+        summarize_data(data),
+        element.compression,
+        len(sanitized_attributes),
     )
 
     write_dataset(
@@ -262,11 +281,5 @@ def process_translation_element(
         element.destination,
         data,
         compression=element.compression,
-        attributes=element.attributes,
+        attributes=sanitized_attributes,
     )
-
-    # Write data to destination, with optional attributes, compression, etc.
-    # dest_file.create_dataset(element.destination, data=data, compression=element.compression)
-    # Add or update attributes as specified in the element
-    # for attr_key, attr_value in element.attributes.items():
-    #     h5_out[element.destination].attrs[attr_key] = sanitize_attribute(attr_value)

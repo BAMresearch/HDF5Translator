@@ -1,152 +1,181 @@
+"""Utilities for reading, writing, and copying HDF5 structures."""
+
+from __future__ import annotations
+
 import logging
 from pathlib import Path
+from typing import Any
+
 import h5py
 import numpy as np
 
 from HDF5Translator.translator_elements import TranslationElement
-from HDF5Translator.utils.data_utils import sanitize_attribute
+from HDF5Translator.utils.data_utils import AttributeValue, sanitize_attribute
 
-doc = """
-This module contains utility functions for working with HDF5 files, such as copying trees, reading data, and writing data.
-"""
+SourceDataCache = dict[tuple[str, str], tuple[Any, dict[str, AttributeValue]]]
+
+
+def _clone_cached_data(data: Any) -> Any:
+    """Return an isolated copy of cached data when needed to avoid mutation side effects."""
+    if isinstance(data, np.ndarray):
+        return data.copy()
+    return data
 
 
 def get_data_and_attributes_from_source(
-    source_file: h5py.File, element: TranslationElement
-):
-    """
-    Get data and attributes from the source file according to the given translation element.
-    """
+    source_file: h5py.File,
+    element: TranslationElement,
+    source_data_cache: SourceDataCache | None = None,
+) -> tuple[Any, dict[str, AttributeValue]]:
+    """Load source data and sanitized attributes for one translation element."""
+    attributes: dict[str, AttributeValue] = {}
+    data: Any = None
 
-    # check if source data exists:
-    dataLocation = None
-    attributes = {}
-    data = None
+    if element.source is None:
+        return element.default_value, attributes
 
-    if element.source is not None:
-        dataLocation = source_file.get(element.source, default=None)
-    if isinstance(dataLocation, h5py.Dataset):
-        data = dataLocation[()]
-        attributes = dict(dataLocation.attrs)
-        # sanitize attributes
-        attributes = {k: sanitize_attribute(v) for k, v in attributes.items()}
+    cache_key: tuple[str, str] | None = None
+    if source_data_cache is not None:
+        cache_key = (str(source_file.filename), element.source)
+        cached_payload = source_data_cache.get(cache_key)
+        if cached_payload is not None:
+            cached_data, cached_attributes = cached_payload
+            return _clone_cached_data(cached_data), dict(cached_attributes)
+
+    data_location = source_file.get(element.source, default=None)
+    if isinstance(data_location, h5py.Dataset):
+        data = data_location[()]
+        attributes = {key: sanitize_attribute(value) for key, value in dict(data_location.attrs).items()}
+        if source_data_cache is not None and cache_key is not None:
+            source_data_cache[cache_key] = (_clone_cached_data(data), dict(attributes))
     else:
         logging.info(
-            f"Path {element.source} does not exist in the input file, using default value {element.default_value} instead"
+            "Path %s does not exist in input file %s, using default value %r",
+            element.source,
+            source_file.filename,
+            element.default_value,
         )
         data = element.default_value
 
     if data is None:
         logging.warning(
-            f"Path {element.source} does not exist in the input file, and no default value was specified. skipping..."
+            "Path %s does not exist in input file %s and no default value was specified",
+            element.source,
+            source_file.filename,
         )
 
     return data, attributes
 
 
-def write_dataset(
-    hdf5_file: h5py.File, path: str, data, compression=None, attributes={}
-):
-    """
-    Write data to the specified path, creating groups as necessary, and setting attributes.
-    """
-    # calculate chunking: if the dataset size is ndim >1 use a chunk size of the last two dimensions:
-    chunking_shape = None
-    if isinstance(data, np.ndarray):
-        if len(data.shape) > 1:
-            chunking_shape = (1,) * (len(data.shape) - 2) + data.shape[-2:]
-        else:
-            chunking_shape = data.shape
+def _calculate_chunking_shape(data: Any) -> tuple[int, ...] | None:
+    """Determine a chunk shape that preserves the two slowest dimensions for arrays."""
+    if not isinstance(data, np.ndarray):
+        return None
+    if len(data.shape) > 1:
+        return (1,) * (len(data.shape) - 2) + data.shape[-2:]
+    return data.shape
 
-    hdf5_file.require_group(path.rsplit("/", maxsplit=1)[0])
-    # check if the dataset exists and is compatible:
+
+def _dataset_is_compatible(existing_dataset: h5py.Dataset, data: Any) -> bool:
+    """Check whether an existing dataset can be updated in place with the provided payload."""
     if isinstance(data, np.ndarray):
-        shape = data.shape
-        dtype = data.dtype
+        return existing_dataset.shape == data.shape and existing_dataset.dtype == data.dtype
+
+    if np.isscalar(data):
+        return existing_dataset.shape == ()
+
+    return False
+
+
+def write_dataset(
+    hdf5_file: h5py.File,
+    path: str,
+    data: Any,
+    compression: str | None = None,
+    attributes: dict[str, Any] | None = None,
+) -> None:
+    """Write a dataset and attributes while avoiding redundant physical writes."""
+    parent_path = path.rsplit("/", maxsplit=1)[0] if "/" in path else ""
+    if parent_path:
+        hdf5_file.require_group(parent_path)
+
+    chunking_shape = _calculate_chunking_shape(data)
+    dataset = hdf5_file.get(path)
+
+    if isinstance(dataset, h5py.Dataset) and _dataset_is_compatible(dataset, data):
+        try:
+            dataset[...] = data
+            target_dataset = dataset
+        except (TypeError, ValueError):
+            del hdf5_file[path]
+            target_dataset = hdf5_file.create_dataset(path, data=data, compression=compression, chunks=chunking_shape)
     else:
-        shape = None
-        dtype = type(data)
-    try:  # if it does not exist, fill with new data
-        dset = hdf5_file.require_dataset(
-            path,
-            shape=shape,
-            dtype=dtype,
-            data=data,
-            compression=compression,
-            chunks=chunking_shape,
-            exact=True,
-        )
-        dset[...] = data
-    except (
-        TypeError,
-        ValueError,
-    ):  # if it exists but is incompatible, delete it and create it again
         if path in hdf5_file:
             del hdf5_file[path]
-        dset = hdf5_file.create_dataset(path, data=data, compression=compression, chunks=chunking_shape)
-    # update attributes.
-    dset.attrs.update(attributes)
+        target_dataset = hdf5_file.create_dataset(path, data=data, compression=compression, chunks=chunking_shape)
+
+    if attributes is not None:
+        target_dataset.attrs.update(attributes)
 
 
-def copy_hdf5_tree(
-    input_file: Path, output_file: Path, input_path: str, output_path: str
-):
-    """
-    Copy a tree from one HDF5 file to another. This should behave like rsync when it comes to slashes etc.
-    """
+def _copy_hdf5_tree_open_files(
+    h5_in: h5py.File,
+    h5_out: h5py.File,
+    input_path: str,
+    output_path: str,
+) -> bool:
+    """Recursively copy trees using open file handles to avoid repeated file open/close overhead."""
+    if not isinstance(h5_in.get(input_path, default="NonExistentGroup"), h5py.Group):
+        logging.info("Input path %s does not exist in %s", input_path, h5_in.filename)
+        return False
 
-    with h5py.File(input_file, "r") as h5_in, h5py.File(output_file, "a") as h5_out:
-        if not isinstance(
-            h5_in.get(input_path, default="NonExistentGroup"), h5py.Group
-        ):
-            logging.info(f"{input_path=} does not exist in {input_file=}")
-            return False
+    copy_to_inside = output_path.endswith("/")
+    copy_from_inside = input_path.endswith("/")
 
-        # check if we need to copy the source element(s) to inside a group
-        copy_to_inside = False
-        if output_path[-1] == "/":
-            copy_to_inside = True
-            output_path = output_path[:-1]
-        # check if we need to copy multiple elements from inside the source
-        copy_from_inside = False
-        if input_path[-1] == "/":
-            copy_from_inside = True
-            input_path = input_path[:-1]
+    if copy_to_inside:
+        output_path = output_path[:-1]
+    if copy_from_inside:
+        input_path = input_path[:-1]
 
-        # deal with the case where we need to copy multiple elements from inside the source or to inside a group
-        if copy_to_inside and copy_from_inside:
-            for group in h5_in[input_path].keys():
-                copy_hdf5_tree(
-                    input_file,
-                    output_file,
-                    f"{input_path}/{group}",
-                    f"{output_path}/{group}",
-                )
-            return True
-        elif copy_to_inside:
-            copy_hdf5_tree(input_file, output_file, input_path, output_path)
-            return True
-        elif copy_from_inside:
-            logging.error(
-                f"Cannot copy multiple entries from inside a group to a single output destination. Did you forget a trailing slash in the destination? Skipping {input_path}"
+    if copy_to_inside and copy_from_inside:
+        for group in h5_in[input_path].keys():
+            _copy_hdf5_tree_open_files(
+                h5_in,
+                h5_out,
+                f"{input_path}/{group}",
+                f"{output_path}/{group}",
             )
-            return False
-
-        # This is the actual copying functionality. If we reach this point, we are copying a single element to a single destination.
-        name = input_path.rsplit("/", maxsplit=1)[-1]
-        if (output_path + "/" + name) in h5_out:
-            logging.warning(
-                f"Output path {output_path + '/' + name} already exists in {output_file}. Overwriting."
-            )
-            del h5_out[output_path + "/" + name]
-        output_group = h5_out.require_group(output_path)
-        h5_in.copy(
-            input_path,
-            output_group,
-            expand_external=True,
-            name=name,
-        )
-        logging.info(
-            f"Copied {input_path} from {input_file} to {output_path} in {output_file}."
-        )
         return True
+
+    if copy_to_inside:
+        return _copy_hdf5_tree_open_files(h5_in, h5_out, input_path, output_path)
+
+    if copy_from_inside:
+        logging.error(
+            "Cannot copy multiple entries from %s to destination %s without trailing slash",
+            input_path,
+            output_path,
+        )
+        return False
+
+    name = input_path.rsplit("/", maxsplit=1)[-1]
+    destination_path = f"{output_path}/{name}"
+    if destination_path in h5_out:
+        logging.warning("Output path %s already exists in %s. Overwriting.", destination_path, h5_out.filename)
+        del h5_out[destination_path]
+
+    output_group = h5_out.require_group(output_path)
+    h5_in.copy(
+        input_path,
+        output_group,
+        expand_external=True,
+        name=name,
+    )
+    logging.info("Copied %s from %s to %s in %s", input_path, h5_in.filename, output_path, h5_out.filename)
+    return True
+
+
+def copy_hdf5_tree(input_file: Path, output_file: Path, input_path: str, output_path: str) -> bool:
+    """Copy a tree from source file to destination file with rsync-like slash semantics."""
+    with h5py.File(input_file, "r") as h5_in, h5py.File(output_file, "a") as h5_out:
+        return _copy_hdf5_tree_open_files(h5_in, h5_out, input_path, output_path)

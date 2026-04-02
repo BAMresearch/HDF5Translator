@@ -1,7 +1,13 @@
+"""Utility helpers for data sanitization, conversion, and configuration parsing."""
+
+from __future__ import annotations
+
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, List, Type, Union
+from typing import Any
+
 import numpy as np
 from pint import UnitRegistry
 
@@ -12,275 +18,292 @@ ureg.define(r"eigerpixels = 0.075 mm = eigerpixel = eigerpx")
 ureg.define(r"pilatuspixels = 0.172 mm = pilatuspixel = pilatuspx")
 Q_ = ureg.Quantity
 
-doc = """
-This module contains utility functions for data manipulation, such as casting to a specific datatype, adding dimensions, and unit conversion.
-"""
+AttributeValue = str | float | int | np.ndarray | None
 
 
-def apply_transformation(data, transformation: Callable):
-    """Apply the given transformation function to the data."""
+def summarize_data(data: Any) -> str:
+    """Return a compact textual description of a data payload for logging."""
+    if isinstance(data, np.ndarray):
+        return f"ndarray(shape={data.shape}, dtype={data.dtype})"
+    return f"{type(data).__name__}({data!r})"
+
+
+def apply_transformation(data: Any, transformation: Callable[[Any], Any]) -> Any:
+    """Apply a custom transformation and keep original data on failure."""
     try:
-        data = transformation(data)
-    except Exception as e:
+        return transformation(data)
+    except Exception as error:
         logging.warning(
-            f"Could not apply custom transformation {transformation} to {data=}, received exception {e}. skipping transformation..."
+            "Could not apply transformation %s to %s: %s",
+            transformation,
+            summarize_data(data),
+            error,
         )
-    return data
-
-
-def resolve_alternate_sourcefile(alternate_source_file: str | Path, dest_file: Path):
-    alternate_source_file = Path(alternate_source_file)
-    logging.info(
-        f"trying to resolve {alternate_source_file=} relative to {dest_file.parent=}"
-    )
-    if any([c in alternate_source_file.as_posix() for c in ["?", "*", "["]]):
-        sourceFile = sorted(
-            Path(dest_file.parent).glob(alternate_source_file.as_posix())
-        )
-        if len(sourceFile) == 0:
-            logging.warning(
-                f"a file matching {alternate_source_file=} could not be found relative to the output file. Skipping link"
-            )
-            return
-        logging.info(f"Source file globbed: {sourceFile[-1]}")
-        alternate_source_file = sourceFile[-1]
-    if not alternate_source_file.is_file():
-        logging.warning(f"{alternate_source_file=} is not a file. Skipping link")
-        return None
-    return alternate_source_file
-
-
-def cast_to_datatype(data, element: TranslationElement):
-    """determines the datatype we need the data to be, recasting it if needed"""
-    if element.data_type is not None:
-        logging.debug(
-            f"attempting to cast value {data} into data_type: {element.data_type}"
-        )
-        if not isinstance(element.data_type, type):
-            logging.warning(
-                "Type conversion must be supplied with a data type in element.data_type, something must have gone wrong. returning data as is without conversion"
-            )
-            return data
-
-        if data is None:
-            # can't do anything, return none
-            return None
-
-        try:
-            if isinstance(data, np.ndarray):
-                data = data.astype(element.data_type)
-            else:
-                data = element.data_type(data)
-        except ValueError:
-            logging.info(
-                f"could not cast value {data} into data_type {element.data_type}, defaulting to {element.default_value} for {element.destination}"
-            )
-            data = element.default_value
-
-    return data
-
-
-def add_dimensions_if_needed(data, element: TranslationElement):
-
-    if element.minimum_dimensionality is None:
-        # no change needed
         return data
 
-    if data is None or element.minimum_dimensionality == 0:
-        return data  # nothing I can do.
 
-    dtype = type(data)
-    if isinstance(data, np.ndarray):
-        dtype = data.dtype
-    try:
-        logging.debug(
-            f"trying to add {element.minimum_dimensionality} dimensions to {data=} of dtype {dtype=} for {element.destination=}"
-        )
-        data = np.array(data, dtype=dtype, ndmin=int(element.minimum_dimensionality))
-    except:  # didn't work...
-        logging.debug("failure to add dimensions. Skipping")
+def resolve_alternate_sourcefile(alternate_source_file: str | Path, dest_file: Path) -> Path | None:
+    """Resolve an alternate source file path relative to the destination file path."""
+    resolved_source_file = Path(alternate_source_file)
+    logging.info("Resolving alternate source file %s relative to %s", resolved_source_file, dest_file.parent)
 
-    return data
+    if any(char in resolved_source_file.as_posix() for char in ["?", "*", "["]):
+        source_matches = sorted(Path(dest_file.parent).glob(resolved_source_file.as_posix()))
+        if len(source_matches) == 0:
+            logging.warning(
+                "Could not find a file matching %s relative to %s",
+                resolved_source_file,
+                dest_file.parent,
+            )
+            return None
+        resolved_source_file = source_matches[-1]
+        logging.info("Resolved alternate source file glob to %s", resolved_source_file)
 
-
-def fix_if_array_of_strings(data):
-    if not isinstance(data, np.ndarray):
-        return data  # leave unchanged
-    if not data.dtype.kind in ["U", "S"]:  # if not one of the string datatypes
-        return data  # leave unchanged
-    else:
-        return " ".join(data.tolist())
-
-
-def select_source_units(element: TranslationElement, attributes: dict | None = None):
-    """
-    This singular function dictates what takes precedence: the units specified in the source file, or the units specified in the translation configuration.
-    If both are none, result remains none. If both are set, the source file units are chosen.
-    """
-    if attributes is not None:
-        if "units" in attributes.keys():
-            return attributes["units"]
-
-    if element.source_units is None:
+    if not resolved_source_file.is_file():
+        logging.warning("Resolved alternate source %s is not a file", resolved_source_file)
         return None
-    else:
-        return element.source_units
+    return resolved_source_file
 
 
-def parse_translation_elements(config) -> List:
-    translations = []
+def cast_to_datatype(data: Any, element: TranslationElement) -> Any:
+    """Cast data to the destination datatype declared in a translation element."""
+    if element.data_type is None:
+        return data
+
+    if not isinstance(element.data_type, type):
+        logging.warning(
+            "Type conversion requires element.data_type to be a type. Received %s for %s",
+            element.data_type,
+            element.destination,
+        )
+        return data
+
+    if data is None:
+        return None
+
+    logging.debug(
+        "Casting %s to %s for destination %s",
+        summarize_data(data),
+        element.data_type,
+        element.destination,
+    )
+
+    try:
+        if isinstance(data, np.ndarray):
+            target_dtype = np.dtype(element.data_type)
+            if data.dtype == target_dtype:
+                return data
+            return data.astype(target_dtype, copy=False)
+
+        if isinstance(data, element.data_type):
+            return data
+        return element.data_type(data)
+    except (TypeError, ValueError) as error:
+        logging.info(
+            "Failed to cast %s to %s for %s (%s). Falling back to default value %r",
+            summarize_data(data),
+            element.data_type,
+            element.destination,
+            error,
+            element.default_value,
+        )
+        return element.default_value
+
+
+def add_dimensions_if_needed(data: Any, element: TranslationElement) -> Any:
+    """Prepend singleton dimensions until data reaches the configured minimum dimensionality."""
+    if element.minimum_dimensionality is None:
+        return data
+
+    if data is None:
+        return data
+
+    minimum_dimensionality = int(element.minimum_dimensionality)
+    if minimum_dimensionality <= 0:
+        return data
+
+    try:
+        if isinstance(data, np.ndarray):
+            if data.ndim >= minimum_dimensionality:
+                return data
+            extra_dims = (1,) * (minimum_dimensionality - data.ndim)
+            return data.reshape(extra_dims + data.shape)
+
+        return np.array(data, ndmin=minimum_dimensionality)
+    except (TypeError, ValueError) as error:
+        logging.debug(
+            "Failed to add dimensions for %s to minimum dimensionality %s (%s)",
+            element.destination,
+            minimum_dimensionality,
+            error,
+        )
+        return data
+
+
+def fix_if_array_of_strings(data: Any) -> Any:
+    """Convert numpy string arrays to a single whitespace-joined string for HDF5 compatibility."""
+    if not isinstance(data, np.ndarray):
+        return data
+    if data.dtype.kind not in ["U", "S"]:
+        return data
+    return " ".join(data.tolist())
+
+
+def select_source_units(element: TranslationElement, attributes: dict[str, Any] | None = None) -> str | None:
+    """Resolve source units, preferring source attributes over configured defaults."""
+    if attributes is not None and "units" in attributes:
+        return attributes["units"]
+    return element.source_units
+
+
+def parse_translation_elements(config: dict[str, Any]) -> list[TranslationElement]:
+    """Parse translation element dictionaries from the loaded configuration."""
+    translations: list[TranslationElement] = []
     for item in config.get("data_copy", []):
         try:
-            translations += [TranslationElement(**item)]
-        except TypeError as e:
+            translations.append(TranslationElement(**item))
+        except TypeError as error:
             logging.warning(
-                f"Could not properly interpret the following entry as a TranslationElement (skipping...): {item=}. it raised the following error: {e}"
+                "Could not parse translation element entry %s (%s). Skipping entry.",
+                item,
+                error,
             )
     return translations
 
 
-def parse_link_elements(config) -> List:
-    links = []
+def parse_link_elements(config: dict[str, Any]) -> list[LinkElement]:
+    """Parse link element dictionaries from the loaded configuration."""
+    links: list[LinkElement] = []
     for item in config.get("link_list", []):
         try:
-            links += [LinkElement(**item)]
-        except TypeError as e:
+            links.append(LinkElement(**item))
+        except TypeError as error:
             logging.warning(
-                f"Could not properly interpret the following entry as a LinkElement (skipping...): {item=}. it raised the following error: {e}"
+                "Could not parse link element entry %s (%s). Skipping entry.",
+                item,
+                error,
             )
     return links
 
 
-def if_data_is_none(data, element):
+def if_data_is_none(data: Any, element: TranslationElement) -> Any | None:
+    """Replace missing data with default value if configured."""
+    if data is not None:
+        return data
 
-    if data is None:
-        if element.default_value is None:
-            logging.warning(
-                f"no data or default value specified for {element.destination}, returning None and skipping.."
-            )
-            return None
-        else:
-            logging.warning(
-                f"no data specified for {element.destination}, returning default value {element.default_value}."
-            )
-            data = element.default_value
-    return data
+    if element.default_value is None:
+        logging.warning(
+            "No data or default value specified for destination %s. Skipping dataset.",
+            element.destination,
+        )
+        return None
+
+    logging.warning(
+        "No data specified for destination %s. Falling back to default value %r.",
+        element.destination,
+        element.default_value,
+    )
+    return element.default_value
 
 
-def sanitize_attribute(
-    value: str | bytes | None, default_type: Type = float
-) -> Union[str, float, np.ndarray]:
-    """
-    Tries to convert the attribute to:
-      - numpy array
-      - value
-      - leave as string
-    """
+def sanitize_attribute(value: str | bytes | None, default_type: type = float) -> AttributeValue:
+    """Convert textual attributes to arrays or scalar numeric values where appropriate."""
     if value is None:
         return None
 
     if isinstance(value, bytes):
         value = value.decode("utf-8")
 
-    value = try_string_as_array(value)
-    if isinstance(value, str):  # conversion did not succeed
+    sanitized_value = try_string_as_array(value)
+    if isinstance(sanitized_value, str):
         try:
-            value = default_type(value)
+            sanitized_value = default_type(sanitized_value)
         except ValueError:
             pass
-    return value
+    return sanitized_value
 
 
-def try_string_as_array(value: str, data_type: Type = None) -> Union[str, np.ndarray]:
-    """
-    Tries to convert the value to a numpy array
-    """
-    if isinstance(value, str):
-        value = value.strip()
-        if len(value) > 0:
-            if value[0] == "[":  # sign it's an array
-                value = np.array(json.loads(value), dtype=data_type)
-    return value
+def try_string_as_array(value: Any, data_type: type | None = None) -> Any:
+    """Parse JSON-style list strings into numpy arrays."""
+    if not isinstance(value, str):
+        return value
+
+    stripped_value = value.strip()
+    if len(stripped_value) == 0 or stripped_value[0] != "[":
+        return stripped_value
+
+    try:
+        return np.array(json.loads(stripped_value), dtype=data_type)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return stripped_value
 
 
-def sanitize_data(data, element: TranslationElement):
-    """
-    Adjust the data according to the destination specifications.
-    This applies default value from the translation element if data is none,
-    casts to the datatype if specified in the translation element,
-    """
-
-    # apply default value if data is None
-    data = if_data_is_none(data, element)
-
-    if data is None:
+def sanitize_data(data: Any, element: TranslationElement) -> Any | None:
+    """Apply defaulting and datatype conversion rules for a translation payload."""
+    sanitized_data = if_data_is_none(data, element)
+    if sanitized_data is None:
         logging.warning(
-            f"Could not find valid data or default for {element.source=}, {element.destination=}, skipping..."
+            "Could not find valid data or default for source=%s destination=%s",
+            element.source,
+            element.destination,
         )
         return None
 
-    # convert bytes to string:
-    if isinstance(data, bytes):
-        data = data.decode("utf-8")
+    if isinstance(sanitized_data, bytes):
+        sanitized_data = sanitized_data.decode("utf-8")
 
-    # check if it is an array by checking the first character, and try to interpret it as such
-    data = try_string_as_array(data, data_type=element.data_type)
-
-    # cast to datatype
-    data = cast_to_datatype(data, element)
-
-    # # fix string datatypes so h5py can handle them, otherwise it complains about not being able to store '<U4' type
-    # if isinstance(data, str):
-    #     print(f'{data=}') # strings can be "1"
-    #     data = data.encode("utf-8")
-    #     print(f'{data=}') # and now they are b"1".. ugh.
-
-    return data
+    sanitized_data = try_string_as_array(sanitized_data, data_type=element.data_type)
+    sanitized_data = cast_to_datatype(sanitized_data, element)
+    return sanitized_data
 
 
 def getFromKeyVals(
-    item: str, keyvals: dict | None, default: str | int | float | None = None
-) -> str | int | float | None:
-    """
-    Helper function to get a value from the keyvals dictionary, with a default value if not present.
-    """
+    item: str,
+    keyvals: dict[str, Any] | None,
+    default: str | int | float | None = None,
+) -> str | int | float | np.ndarray | None:
+    """Read and sanitize values from key-value dictionaries used by post-processing scripts."""
     if keyvals is None:
         return default
-    val = keyvals.get(item, default)
-    if val is None:
+
+    value = keyvals.get(item, default)
+    if value is None:
         return default
-    val = sanitize_attribute(val)
-    return val
+
+    return sanitize_attribute(value)
 
 
-def perform_unit_conversion(data, input_units, output_units):
-    """
-    Converts the data from input units to output units using pint.
-
-    Args:
-        data (np.ndarray): The data to convert.
-        input_units (str): The units of the input data.
-        output_units (str): The units to convert the data to.
-
-    Returns:
-        np.ndarray: The data converted to the output units.
-    """
+def perform_unit_conversion(data: Any, input_units: str, output_units: str) -> Any:
+    """Convert values between units using Pint while returning original data on conversion errors."""
     logging.debug(
-        f"Converting {data=} of type {type(data)} from {input_units=} to {output_units=}"
+        "Converting %s from input_units=%s to output_units=%s",
+        summarize_data(data),
+        input_units,
+        output_units,
     )
+
     try:
         quantity = Q_(data, input_units)
-    except:
+    except (TypeError, ValueError) as error:
         logging.warning(
-            f"Could not convert {data=} to a quantity with {input_units=}, skipping unit conversion"
+            "Could not create quantity for %s with input_units=%s (%s)",
+            summarize_data(data),
+            input_units,
+            error,
         )
         return data
+
     try:
         converted = quantity.to(output_units).magnitude
-    except:
+    except (TypeError, ValueError) as error:
         logging.warning(
-            f"Could not convert {data=} from {input_units=} to {output_units=}, skipping unit conversion"
+            "Could not convert %s from %s to %s (%s)",
+            summarize_data(data),
+            input_units,
+            output_units,
+            error,
         )
         return data
-    logging.debug(f"converted value: {converted}")
+
+    logging.debug("Converted value summary: %s", summarize_data(converted))
     return converted

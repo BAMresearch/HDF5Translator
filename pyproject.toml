@@ -7,6 +7,7 @@ name = "HDF5Translator"
 version = "0.1.5"
 description = "A tool for translating and manipulating HDF5 file structures."
 authors = [{name = "Brian R. Pauw"}]
+requires-python = ">=3.11"
 dependencies = [
     "h5py",
     "numpy",
@@ -31,3 +32,15 @@ hdf5_stacker = "HDF5Translator.tools.hdf5_stacker:main"
 [tool.setuptools.packages.find]
 where = ["."]
 exclude = ["example_configurations"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I", "UP"]
+
+[tool.pytest.ini_options]
+markers = [
+    "perf: performance benchmark tests (soft gate)",
+]
