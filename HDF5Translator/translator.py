@@ -85,15 +85,6 @@ def translate(
             else:
                 process_translation_element(None, h5_out, element)
 
-        # if source_file:
-        #     with h5py.File(source_file, "r") as h5_in:
-        #         for element in translations:
-        #             logging.info(f"Translating {element=} ")
-        #             process_translation_element(h5_in, h5_out, element)
-        # else:
-        #     for element in translations:
-        #         process_translation_element(None, h5_out, element)
-
     # Step 3: Update or add attributes as specified in the configuration
     attributes = config.get("attributes", [])
     with h5py.File(dest_file, "a") as h5_out:
